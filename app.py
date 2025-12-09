@@ -11,13 +11,19 @@ from flask import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
-DB_PATH = "riftbound.db"
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DB_PATH = os.path.join(DATA_DIR, "riftbound.db")
 
 # -------------------------------------------------------------------
 # Flask app
 # -------------------------------------------------------------------
 app = Flask(__name__, static_folder=".", static_url_path="")
-app.secret_key = "CHANGE_THIS_SECRET_KEY"  # replace for real use
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
 
 # -------------------------------------------------------------------
@@ -544,4 +550,4 @@ def index():
 # -------------------------------------------------------------------
 if __name__ == "__main__":
     init_db()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
