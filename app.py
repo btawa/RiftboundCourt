@@ -1,5 +1,7 @@
 import json
 import sqlite3
+import secrets
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import (
@@ -45,7 +47,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL
+            password_hash TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0
         )
         """
     )
@@ -82,6 +85,22 @@ def init_db():
         """
     )
 
+    # Password reset tokens table
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            used INTEGER DEFAULT 0,
+            approved INTEGER DEFAULT 0,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+        """
+    )
+
     conn.commit()
     conn.close()
 
@@ -94,6 +113,26 @@ def login_required(f):
     def wrapper(*args, **kwargs):
         if "user_id" not in session:
             return jsonify({"error": "Not authenticated"}), 401
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
+def admin_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if "user_id" not in session:
+            return jsonify({"error": "Not authenticated"}), 401
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT is_admin FROM users WHERE id = ?", (session["user_id"],))
+        row = cur.fetchone()
+        conn.close()
+
+        if row is None or not row["is_admin"]:
+            return jsonify({"error": "Admin access required"}), 403
+
         return f(*args, **kwargs)
 
     return wrapper
@@ -160,11 +199,16 @@ def register():
     conn = get_db()
     cur = conn.cursor()
 
+    # Check if this is the first user (make them admin)
+    cur.execute("SELECT COUNT(*) as count FROM users")
+    count = cur.fetchone()["count"]
+    is_admin = 1 if count == 0 else 0
+
     try:
         pw_hash = generate_password_hash(password)
         cur.execute(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-            (username, pw_hash),
+            "INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)",
+            (username, pw_hash, is_admin),
         )
         user_id = cur.lastrowid
         conn.commit()
@@ -178,7 +222,7 @@ def register():
 
     conn.close()
     session["user_id"] = user_id
-    return jsonify({"id": user_id, "username": username})
+    return jsonify({"id": user_id, "username": username, "isAdmin": bool(is_admin)})
 
 
 @app.post("/api/login")
@@ -200,7 +244,7 @@ def login():
         return jsonify({"error": "Invalid username or password"}), 401
 
     session["user_id"] = row["id"]
-    return jsonify({"id": row["id"], "username": row["username"]})
+    return jsonify({"id": row["id"], "username": row["username"], "isAdmin": bool(row["is_admin"])})
 
 
 @app.get("/api/me")
@@ -211,19 +255,316 @@ def me():
 
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT id, username FROM users WHERE id = ?", (user_id,))
+    cur.execute("SELECT id, username, is_admin FROM users WHERE id = ?", (user_id,))
     row = cur.fetchone()
     conn.close()
 
     if row is None:
         return jsonify({"user": None})
 
-    return jsonify({"user": {"id": row["id"], "username": row["username"]}})
+    return jsonify({"user": {"id": row["id"], "username": row["username"], "isAdmin": bool(row["is_admin"])}})
 
 
 @app.post("/api/logout")
 def logout():
     session.clear()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/password-reset/request")
+def request_password_reset():
+    data = request.get_json() or {}
+    username = (data.get("username") or "").strip()
+
+    if not username:
+        return jsonify({"error": "Username is required"}), 400
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Check if user exists
+    cur.execute("SELECT id FROM users WHERE username = ?", (username,))
+    row = cur.fetchone()
+
+    if row is None:
+        conn.close()
+        return jsonify({"error": "Username not found"}), 404
+
+    user_id = row["id"]
+
+    # Generate secure token
+    token = secrets.token_urlsafe(32)
+    created_at = datetime.utcnow().isoformat()
+    expires_at = (datetime.utcnow() + timedelta(hours=24)).isoformat()
+
+    try:
+        cur.execute(
+            """
+            INSERT INTO password_reset_tokens (user_id, token, created_at, expires_at, used)
+            VALUES (?, ?, ?, ?, 0)
+            """,
+            (user_id, token, created_at, expires_at),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        print("Error creating reset token:", e)
+        return jsonify({"error": "Server error"}), 500
+
+    conn.close()
+
+    return jsonify({"token": token, "username": username, "expiresAt": expires_at})
+
+
+@app.post("/api/password-reset/confirm")
+def confirm_password_reset():
+    data = request.get_json() or {}
+    token = (data.get("token") or "").strip()
+    new_password = data.get("newPassword") or ""
+
+    if not token or not new_password:
+        return jsonify({"error": "Token and new password are required"}), 400
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Find valid token
+    cur.execute(
+        """
+        SELECT id, user_id, expires_at, used, approved
+        FROM password_reset_tokens
+        WHERE token = ?
+        """,
+        (token,),
+    )
+    row = cur.fetchone()
+
+    if row is None:
+        conn.close()
+        return jsonify({"error": "Invalid token"}), 400
+
+    if row["used"]:
+        conn.close()
+        return jsonify({"error": "Token has already been used"}), 400
+
+    if not row["approved"]:
+        conn.close()
+        return jsonify({"error": "Token has not been approved by an admin yet"}), 403
+
+    # Check if expired
+    expires_at = datetime.fromisoformat(row["expires_at"])
+    if datetime.utcnow() > expires_at:
+        conn.close()
+        return jsonify({"error": "Token has expired"}), 400
+
+    user_id = row["user_id"]
+    token_id = row["id"]
+
+    # Update password
+    pw_hash = generate_password_hash(new_password)
+    try:
+        cur.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (pw_hash, user_id),
+        )
+        # Mark token as used
+        cur.execute(
+            "UPDATE password_reset_tokens SET used = 1 WHERE id = ?",
+            (token_id,),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        print("Error resetting password:", e)
+        return jsonify({"error": "Server error"}), 500
+
+    conn.close()
+    return jsonify({"ok": True})
+
+
+# -------------------------------------------------------------------
+# Admin routes (password reset management)
+# -------------------------------------------------------------------
+@app.get("/api/admin/password-reset-requests")
+@admin_required
+def list_password_reset_requests():
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Get pending requests (not approved, not used, not expired)
+    cur.execute(
+        """
+        SELECT
+            prt.id,
+            prt.token,
+            prt.created_at,
+            prt.expires_at,
+            u.username
+        FROM password_reset_tokens prt
+        JOIN users u ON prt.user_id = u.id
+        WHERE prt.approved = 0
+          AND prt.used = 0
+          AND datetime(prt.expires_at) > datetime('now')
+        ORDER BY prt.created_at DESC
+        """
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    requests = []
+    for row in rows:
+        requests.append({
+            "id": row["id"],
+            "username": row["username"],
+            "token": row["token"],
+            "createdAt": row["created_at"],
+            "expiresAt": row["expires_at"],
+        })
+
+    return jsonify(requests)
+
+
+@app.post("/api/admin/password-reset-requests/<int:request_id>/approve")
+@admin_required
+def approve_password_reset_request(request_id):
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Check if request exists and is valid
+    cur.execute(
+        """
+        SELECT id, approved, used, expires_at
+        FROM password_reset_tokens
+        WHERE id = ?
+        """,
+        (request_id,),
+    )
+    row = cur.fetchone()
+
+    if row is None:
+        conn.close()
+        return jsonify({"error": "Request not found"}), 404
+
+    if row["approved"]:
+        conn.close()
+        return jsonify({"error": "Request already approved"}), 400
+
+    if row["used"]:
+        conn.close()
+        return jsonify({"error": "Token already used"}), 400
+
+    # Check if expired
+    expires_at = datetime.fromisoformat(row["expires_at"])
+    if datetime.utcnow() > expires_at:
+        conn.close()
+        return jsonify({"error": "Token has expired"}), 400
+
+    # Approve the request
+    try:
+        cur.execute(
+            "UPDATE password_reset_tokens SET approved = 1 WHERE id = ?",
+            (request_id,),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        print("Error approving request:", e)
+        return jsonify({"error": "Server error"}), 500
+
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/admin/password-reset-requests/<int:request_id>/deny")
+@admin_required
+def deny_password_reset_request(request_id):
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Check if request exists
+    cur.execute(
+        "SELECT id FROM password_reset_tokens WHERE id = ?",
+        (request_id,),
+    )
+    row = cur.fetchone()
+
+    if row is None:
+        conn.close()
+        return jsonify({"error": "Request not found"}), 404
+
+    # Delete the request
+    try:
+        cur.execute(
+            "DELETE FROM password_reset_tokens WHERE id = ?",
+            (request_id,),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        print("Error denying request:", e)
+        return jsonify({"error": "Server error"}), 500
+
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.get("/api/admin/users")
+@admin_required
+def list_users():
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT id, username, is_admin
+        FROM users
+        ORDER BY id ASC
+        """
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    users = []
+    for row in rows:
+        users.append({
+            "id": row["id"],
+            "username": row["username"],
+            "isAdmin": bool(row["is_admin"]),
+        })
+
+    return jsonify(users)
+
+
+@app.post("/api/admin/users/<int:user_id>/set-admin")
+@admin_required
+def set_user_admin(user_id):
+    data = request.get_json() or {}
+    is_admin = data.get("isAdmin", False)
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Check if user exists
+    cur.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+    row = cur.fetchone()
+
+    if row is None:
+        conn.close()
+        return jsonify({"error": "User not found"}), 404
+
+    # Update admin status
+    try:
+        cur.execute(
+            "UPDATE users SET is_admin = ? WHERE id = ?",
+            (1 if is_admin else 0, user_id),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        print("Error updating user role:", e)
+        return jsonify({"error": "Server error"}), 500
+
+    conn.close()
     return jsonify({"ok": True})
 
 

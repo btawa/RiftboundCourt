@@ -529,7 +529,79 @@
         <span id="authToggleText">Need an account?</span>
         <button type="button" id="authToggleBtn">Register</button>
       </div>
+
+      <div class="auth-toggle" style="margin-top: 4px;">
+        <button type="button" id="forgotPasswordBtn" style="text-decoration: underline;">Forgot password?</button>
+      </div>
     </div>
+  </div>
+
+  <!-- Password Reset Request Overlay -->
+  <div class="overlay" id="resetRequestOverlay">
+    <section class="sheet modal-sheet auth-card" style="margin: 0;">
+      <div class="sheet-title">Request Password Reset</div>
+      <div class="auth-subtitle">Enter your username to generate a reset token.</div>
+
+      <div id="resetRequestError" class="auth-error"></div>
+
+      <form id="resetRequestForm">
+        <div class="field">
+          <div class="field-label">Username</div>
+          <input type="text" id="resetUsername" autocomplete="username" />
+        </div>
+        <div class="sheet-footer">
+          <button type="button" class="btn btn-secondary" id="cancelResetRequestBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Generate Token</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <!-- Password Reset Token Display Overlay -->
+  <div class="overlay" id="resetTokenOverlay">
+    <section class="sheet modal-sheet auth-card" style="margin: 0;">
+      <div class="sheet-title">Reset Token Generated</div>
+      <div class="auth-subtitle">Share this token with an admin to verify your identity.</div>
+
+      <div class="field">
+        <div class="field-label">Your Reset Token (expires in 24 hours)</div>
+        <input type="text" id="displayToken" readonly style="background: #fff; font-family: monospace; font-size: 0.85rem;" />
+      </div>
+
+      <div style="font-size: 0.8rem; color: var(--muted); margin-bottom: 12px;">
+        Copy this token and contact an admin. Once verified, click "Reset Password" below to use the token.
+      </div>
+
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" id="closeTokenBtn">Close</button>
+        <button type="button" class="btn btn-primary" id="useTokenBtn">Reset Password</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Password Reset Confirm Overlay -->
+  <div class="overlay" id="resetConfirmOverlay">
+    <section class="sheet modal-sheet auth-card" style="margin: 0;">
+      <div class="sheet-title">Reset Password</div>
+      <div class="auth-subtitle">Enter your token and new password.</div>
+
+      <div id="resetConfirmError" class="auth-error"></div>
+
+      <form id="resetConfirmForm">
+        <div class="field">
+          <div class="field-label">Reset Token</div>
+          <input type="text" id="resetToken" style="font-family: monospace; font-size: 0.85rem;" />
+        </div>
+        <div class="field">
+          <div class="field-label">New Password</div>
+          <input type="password" id="resetNewPassword" autocomplete="new-password" />
+        </div>
+        <div class="sheet-footer">
+          <button type="button" class="btn btn-secondary" id="cancelResetConfirmBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Reset Password</button>
+        </div>
+      </form>
+    </section>
   </div>
 
   <!-- APP VIEW -->
@@ -547,6 +619,7 @@
           </div>
           <div class="user-pill">
             <span id="userPillName"></span>
+            <button type="button" id="adminBtn">Admin</button>
             <button type="button" id="logoutBtn">Logout</button>
           </div>
         </div>
@@ -785,6 +858,37 @@
           <button type="submit" class="btn btn-primary" id="saveEventCommentsBtn">Save notes</button>
         </div>
       </form>
+    </section>
+  </div>
+
+  <!-- Admin Panel Overlay -->
+  <div class="overlay" id="adminOverlay">
+    <section class="sheet modal-sheet" id="adminSheet">
+      <div class="sheet-title">Admin Panel</div>
+
+      <!-- Tab buttons -->
+      <div style="display: flex; gap: 8px; margin: 12px 0; border-bottom: 1px solid #e5e7eb;">
+        <button type="button" id="adminTabResets" class="admin-tab active" style="flex: 1; padding: 8px; border: none; background: transparent; cursor: pointer; border-bottom: 2px solid var(--accent); font-weight: 600;">Password Resets</button>
+        <button type="button" id="adminTabUsers" class="admin-tab" style="flex: 1; padding: 8px; border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent;">User Management</button>
+      </div>
+
+      <!-- Password Reset Requests Tab -->
+      <div id="adminResetsContent" class="admin-tab-content">
+        <div id="adminPendingRequests" style="margin-top: 12px;">
+          <!-- Pending requests will be inserted here -->
+        </div>
+      </div>
+
+      <!-- User Management Tab -->
+      <div id="adminUsersContent" class="admin-tab-content" style="display: none;">
+        <div id="adminUsersList" style="margin-top: 12px;">
+          <!-- Users list will be inserted here -->
+        </div>
+      </div>
+
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" id="closeAdminBtn">Close</button>
+      </div>
     </section>
   </div>
 
@@ -1144,6 +1248,14 @@
       document.getElementById("userPillName").textContent =
         name ? `@${name}` : "";
 
+      // Show/hide admin button based on role
+      const adminBtn = document.getElementById("adminBtn");
+      if (currentUser && currentUser.isAdmin) {
+        adminBtn.style.display = "inline-block";
+      } else {
+        adminBtn.style.display = "none";
+      }
+
       renderEvents();
     }
 
@@ -1192,6 +1304,349 @@
       currentDetailRound = null;
       editingRoundId = null;
       showAuthView();
+    }
+
+    /* ---- Password Reset ---- */
+
+    function showResetRequestError(message) {
+      const error = document.getElementById("resetRequestError");
+      error.textContent = message;
+      error.style.display = "block";
+    }
+
+    function showResetConfirmError(message) {
+      const error = document.getElementById("resetConfirmError");
+      error.textContent = message;
+      error.style.display = "block";
+    }
+
+    function showResetRequestOverlay() {
+      document.getElementById("resetUsername").value = "";
+      const error = document.getElementById("resetRequestError");
+      error.textContent = "";
+      error.style.display = "none";
+      document.getElementById("resetRequestOverlay").classList.add("visible");
+      document.querySelector("#resetRequestOverlay .sheet").classList.add("visible");
+    }
+
+    function hideResetRequestOverlay() {
+      document.querySelector("#resetRequestOverlay .sheet").classList.remove("visible");
+      document.getElementById("resetRequestOverlay").classList.remove("visible");
+    }
+
+    function showResetTokenOverlay(token) {
+      document.getElementById("displayToken").value = token;
+      document.getElementById("resetTokenOverlay").classList.add("visible");
+      document.querySelector("#resetTokenOverlay .sheet").classList.add("visible");
+    }
+
+    function hideResetTokenOverlay() {
+      document.querySelector("#resetTokenOverlay .sheet").classList.remove("visible");
+      document.getElementById("resetTokenOverlay").classList.remove("visible");
+    }
+
+    function showResetConfirmOverlay(token) {
+      if (token) {
+        document.getElementById("resetToken").value = token;
+      } else {
+        document.getElementById("resetToken").value = "";
+      }
+      document.getElementById("resetNewPassword").value = "";
+      const error = document.getElementById("resetConfirmError");
+      error.textContent = "";
+      error.style.display = "none";
+      document.getElementById("resetConfirmOverlay").classList.add("visible");
+      document.querySelector("#resetConfirmOverlay .sheet").classList.add("visible");
+    }
+
+    function hideResetConfirmOverlay() {
+      document.querySelector("#resetConfirmOverlay .sheet").classList.remove("visible");
+      document.getElementById("resetConfirmOverlay").classList.remove("visible");
+    }
+
+    async function handleResetRequest(e) {
+      e.preventDefault();
+      const username = document.getElementById("resetUsername").value.trim();
+
+      if (!username) {
+        showResetRequestError("Enter your username.");
+        return;
+      }
+
+      try {
+        const res = await apiPost("/api/password-reset/request", { username });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showResetRequestError(data.error || "Failed to generate token.");
+          return;
+        }
+
+        const data = await res.json();
+        hideResetRequestOverlay();
+        showResetTokenOverlay(data.token);
+      } catch (err) {
+        console.error(err);
+        showResetRequestError("Server error. Check console/logs.");
+      }
+    }
+
+    async function handleResetConfirm(e) {
+      e.preventDefault();
+      const token = document.getElementById("resetToken").value.trim();
+      const newPassword = document.getElementById("resetNewPassword").value;
+
+      if (!token || !newPassword) {
+        showResetConfirmError("Enter both token and new password.");
+        return;
+      }
+
+      try {
+        const res = await apiPost("/api/password-reset/confirm", {
+          token,
+          newPassword
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showResetConfirmError(data.error || "Failed to reset password.");
+          return;
+        }
+
+        hideResetConfirmOverlay();
+        hideResetTokenOverlay();
+        alert("Password reset successful! You can now log in with your new password.");
+      } catch (err) {
+        console.error(err);
+        showResetConfirmError("Server error. Check console/logs.");
+      }
+    }
+
+    /* ---- Admin Panel ---- */
+
+    function showAdminPanel() {
+      document.getElementById("adminOverlay").classList.add("visible");
+      document.getElementById("adminSheet").classList.add("visible");
+      loadPendingResetRequests();
+    }
+
+    function hideAdminPanel() {
+      document.getElementById("adminSheet").classList.remove("visible");
+      document.getElementById("adminOverlay").classList.remove("visible");
+    }
+
+    async function loadPendingResetRequests() {
+      const container = document.getElementById("adminPendingRequests");
+      container.innerHTML = "<div style='padding: 10px; color: var(--muted);'>Loading...</div>";
+
+      try {
+        const requests = await apiGet("/api/admin/password-reset-requests");
+
+        if (!requests || requests.length === 0) {
+          container.innerHTML = "<div style='padding: 10px; color: var(--muted); font-size: 0.85rem;'>No pending password reset requests.</div>";
+          return;
+        }
+
+        container.innerHTML = "";
+        requests.forEach(req => {
+          const card = document.createElement("div");
+          card.style.cssText = "background: var(--card); border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-bottom: 10px;";
+
+          const username = document.createElement("div");
+          username.style.cssText = "font-weight: 600; font-size: 0.95rem; margin-bottom: 4px;";
+          username.textContent = `Username: ${req.username}`;
+
+          const token = document.createElement("div");
+          token.style.cssText = "font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; word-break: break-all; font-family: monospace;";
+          token.textContent = `Token: ${req.token}`;
+
+          const created = document.createElement("div");
+          created.style.cssText = "font-size: 0.75rem; color: var(--muted); margin-bottom: 8px;";
+          const createdDate = new Date(req.createdAt).toLocaleString();
+          created.textContent = `Requested: ${createdDate}`;
+
+          const actions = document.createElement("div");
+          actions.style.cssText = "display: flex; gap: 8px;";
+
+          const approveBtn = document.createElement("button");
+          approveBtn.className = "btn btn-primary";
+          approveBtn.textContent = "Approve";
+          approveBtn.style.flex = "1";
+          approveBtn.onclick = async () => {
+            if (confirm(`Approve password reset for ${req.username}?`)) {
+              await approveResetRequest(req.id);
+            }
+          };
+
+          const denyBtn = document.createElement("button");
+          denyBtn.className = "btn btn-secondary";
+          denyBtn.textContent = "Deny";
+          denyBtn.style.flex = "1";
+          denyBtn.onclick = async () => {
+            if (confirm(`Deny password reset for ${req.username}?`)) {
+              await denyResetRequest(req.id);
+            }
+          };
+
+          actions.appendChild(approveBtn);
+          actions.appendChild(denyBtn);
+
+          card.appendChild(username);
+          card.appendChild(token);
+          card.appendChild(created);
+          card.appendChild(actions);
+
+          container.appendChild(card);
+        });
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = "<div style='padding: 10px; color: #b91c1c; font-size: 0.85rem;'>Error loading requests.</div>";
+      }
+    }
+
+    async function approveResetRequest(requestId) {
+      try {
+        const res = await apiPost(`/api/admin/password-reset-requests/${requestId}/approve`, {});
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || "Failed to approve request.");
+          return;
+        }
+        alert("Request approved! User can now use their token to reset password.");
+        loadPendingResetRequests();
+      } catch (err) {
+        console.error(err);
+        alert("Server error. Check console/logs.");
+      }
+    }
+
+    async function denyResetRequest(requestId) {
+      try {
+        const res = await apiPost(`/api/admin/password-reset-requests/${requestId}/deny`, {});
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || "Failed to deny request.");
+          return;
+        }
+        alert("Request denied and deleted.");
+        loadPendingResetRequests();
+      } catch (err) {
+        console.error(err);
+        alert("Server error. Check console/logs.");
+      }
+    }
+
+    function switchAdminTab(tab) {
+      // Update tab buttons
+      document.querySelectorAll(".admin-tab").forEach(btn => {
+        btn.classList.remove("active");
+        btn.style.borderBottom = "2px solid transparent";
+        btn.style.fontWeight = "normal";
+      });
+
+      // Update content
+      document.querySelectorAll(".admin-tab-content").forEach(content => {
+        content.style.display = "none";
+      });
+
+      if (tab === "resets") {
+        document.getElementById("adminTabResets").classList.add("active");
+        document.getElementById("adminTabResets").style.borderBottom = "2px solid var(--accent)";
+        document.getElementById("adminTabResets").style.fontWeight = "600";
+        document.getElementById("adminResetsContent").style.display = "block";
+        loadPendingResetRequests();
+      } else if (tab === "users") {
+        document.getElementById("adminTabUsers").classList.add("active");
+        document.getElementById("adminTabUsers").style.borderBottom = "2px solid var(--accent)";
+        document.getElementById("adminTabUsers").style.fontWeight = "600";
+        document.getElementById("adminUsersContent").style.display = "block";
+        loadUsersList();
+      }
+    }
+
+    async function loadUsersList() {
+      const container = document.getElementById("adminUsersList");
+      container.innerHTML = "<div style='padding: 10px; color: var(--muted);'>Loading...</div>";
+
+      try {
+        const users = await apiGet("/api/admin/users");
+
+        if (!users || users.length === 0) {
+          container.innerHTML = "<div style='padding: 10px; color: var(--muted); font-size: 0.85rem;'>No users found.</div>";
+          return;
+        }
+
+        container.innerHTML = "";
+        users.forEach(user => {
+          const card = document.createElement("div");
+          card.style.cssText = "background: var(--card); border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;";
+
+          const info = document.createElement("div");
+          const username = document.createElement("div");
+          username.style.cssText = "font-weight: 600; font-size: 0.95rem; margin-bottom: 2px;";
+          username.textContent = user.username;
+
+          const role = document.createElement("div");
+          role.style.cssText = "font-size: 0.75rem; color: var(--muted);";
+          role.textContent = user.isAdmin ? "Role: Admin" : "Role: User";
+
+          info.appendChild(username);
+          info.appendChild(role);
+
+          const actions = document.createElement("div");
+          actions.style.cssText = "display: flex; gap: 8px;";
+
+          if (user.isAdmin) {
+            const revokeBtn = document.createElement("button");
+            revokeBtn.className = "btn btn-secondary";
+            revokeBtn.textContent = "Revoke Admin";
+            revokeBtn.style.fontSize = "0.8rem";
+            revokeBtn.style.padding = "6px 12px";
+            revokeBtn.onclick = async () => {
+              if (confirm(`Revoke admin access for ${user.username}?`)) {
+                await setUserAdmin(user.id, false);
+              }
+            };
+            actions.appendChild(revokeBtn);
+          } else {
+            const promoteBtn = document.createElement("button");
+            promoteBtn.className = "btn btn-primary";
+            promoteBtn.textContent = "Make Admin";
+            promoteBtn.style.fontSize = "0.8rem";
+            promoteBtn.style.padding = "6px 12px";
+            promoteBtn.onclick = async () => {
+              if (confirm(`Grant admin access to ${user.username}?`)) {
+                await setUserAdmin(user.id, true);
+              }
+            };
+            actions.appendChild(promoteBtn);
+          }
+
+          card.appendChild(info);
+          card.appendChild(actions);
+
+          container.appendChild(card);
+        });
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = "<div style='padding: 10px; color: #b91c1c; font-size: 0.85rem;'>Error loading users. You may not have admin access.</div>";
+      }
+    }
+
+    async function setUserAdmin(userId, isAdmin) {
+      try {
+        const res = await apiPost(`/api/admin/users/${userId}/set-admin`, { isAdmin });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || "Failed to update user role.");
+          return;
+        }
+        alert(`User role updated successfully!`);
+        loadUsersList();
+      } catch (err) {
+        console.error(err);
+        alert("Server error. Check console/logs.");
+      }
     }
 
     /* ---- Events view ---- */
@@ -1711,6 +2166,23 @@
       document.getElementById("authForm").onsubmit = handleAuthSubmit;
       document.getElementById("authCancelBtn").onclick = clearAuthFields;
       document.getElementById("logoutBtn").onclick = handleLogout;
+      document.getElementById("adminBtn").onclick = showAdminPanel;
+      document.getElementById("closeAdminBtn").onclick = hideAdminPanel;
+      document.getElementById("adminTabResets").onclick = () => switchAdminTab("resets");
+      document.getElementById("adminTabUsers").onclick = () => switchAdminTab("users");
+
+      // Password reset UI wiring
+      document.getElementById("forgotPasswordBtn").onclick = showResetRequestOverlay;
+      document.getElementById("resetRequestForm").onsubmit = handleResetRequest;
+      document.getElementById("cancelResetRequestBtn").onclick = hideResetRequestOverlay;
+      document.getElementById("closeTokenBtn").onclick = hideResetTokenOverlay;
+      document.getElementById("useTokenBtn").onclick = () => {
+        const token = document.getElementById("displayToken").value;
+        hideResetTokenOverlay();
+        showResetConfirmOverlay(token);
+      };
+      document.getElementById("resetConfirmForm").onsubmit = handleResetConfirm;
+      document.getElementById("cancelResetConfirmBtn").onclick = hideResetConfirmOverlay;
 
       // Events view
       document.getElementById("addEventTrigger").onclick = showEventSheet;
