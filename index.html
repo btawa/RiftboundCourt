@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Riftbound Tournament Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --accent: #2563eb;
+      --accent-soft: #e0edff;
+      --muted: #6b7280;
+      --text: #111827;
+      --radius-lg: 18px;
+      --radius-pill: 999px;
+      --shadow-soft: 0 18px 45px rgba(15,23,42,0.12);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont,
+        "SF Pro Text", "Segoe UI", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .app-shell {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 12px 12px 32px;
+    }
+
+    /* Header card */
+    .event-header-card {
+      background: var(--card);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px 14px;
+      box-shadow: var(--shadow-soft);
+      margin-bottom: 12px;
+    }
+
+    .event-header-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .event-header-main {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .event-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .event-subtitle {
+      font-size: 0.8rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .record-pill {
+      font-weight: 700;
+      font-size: 1rem;
+      color: #111827;
+      white-space: nowrap;
+    }
+
+    .back-button {
+      border: none;
+      background: transparent;
+      padding: 4px 6px 4px 0;
+      font-size: 0.85rem;
+      color: var(--accent);
+      cursor: pointer;
+    }
+
+    .icon-button {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      padding: 4px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    /* Generic add row */
+    .add-row {
+      padding: 10px 18px 12px;
+      border-top: 1px solid #e5e7eb;
+      background: #f9fafb;
+      text-align: center;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    /* Events list */
+    .events-card {
+      background: var(--card);
+      border-radius: var(--radius-lg);
+      padding: 10px 0 4px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .events-header-row {
+      display: grid;
+      grid-template-columns: 1fr 80px;
+      padding: 0 18px 6px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .event-row {
+      display: grid;
+      grid-template-columns: 1fr 80px;
+      padding: 10px 18px;
+      border-top: 1px solid #e5e7eb;
+      cursor: pointer;
+    }
+
+    .event-row:hover {
+      background: #f3f4ff;
+    }
+
+    .event-name {
+      font-weight: 500;
+      font-size: 0.9rem;
+    }
+
+    .event-deck {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .event-record-wrap {
+      text-align: right;
+      font-size: 0.8rem;
+    }
+
+    .event-record {
+      font-weight: 600;
+    }
+
+    .event-delete {
+      font-size: 0.7rem;
+      color: #9ca3af;
+      cursor: pointer;
+      margin-top: 3px;
+      display: inline; /* only the text is clickable */
+    }
+
+    /* Rounds list for an event */
+    .rounds-card {
+      background: var(--card);
+      border-radius: var(--radius-lg);
+      padding: 10px 0 4px;
+      box-shadow: var(--shadow-soft);
+      margin-top: 12px;
+      margin-bottom: 16px;
+    }
+
+    .rounds-header-row {
+      display: grid;
+      grid-template-columns: 60px 1fr 80px;
+      padding: 0 18px 6px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .round-row {
+      display: grid;
+      grid-template-columns: 60px 1fr 80px;
+      padding: 10px 18px;
+      border-top: 1px solid #e5e7eb;
+      cursor: pointer;
+    }
+
+    .row-win  { background: #dcfce7; }
+    .row-loss { background: #fee2e2; }
+    .row-draw { background: #e5e7eb; }
+
+    .round-roundnum {
+      font-weight: 600;
+      color: #9f1239;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .round-roundnum .die {
+      font-size: 0.9rem;
+    }
+
+    .round-deck-main {
+      font-weight: 500;
+    }
+
+    .round-actions {
+      font-size: 0.7rem;
+      color: #9ca3af;
+      margin-top: 3px;
+    }
+
+    .round-edit-btn,
+    .round-delete-btn {
+      cursor: pointer;
+      display: inline; /* only text area clickable */
+    }
+
+    .round-edit-btn {
+      margin-right: 6px;
+    }
+
+    .round-result {
+      text-align: right;
+    }
+
+    .result-main-letter {
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .result-pattern {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    /* Sheets / cards */
+    .sheet {
+      margin-top: 16px;
+      background: var(--card);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px 18px;
+      box-shadow: var(--shadow-soft);
+      display: none;
+    }
+
+    .sheet.visible { display: block; }
+
+    .sheet-title {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 6px;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      font-size: 0.9rem;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      min-height: 70px;
+      resize: vertical;
+    }
+
+    /* notes card that always sits between header and rounds */
+    .notes-card {
+      background: var(--card);
+      border-radius: var(--radius-lg);
+      padding: 12px 18px 14px;
+      box-shadow: var(--shadow-soft);
+      margin-bottom: 12px;
+      min-height: 110px; /* keep size similar whether editing or not */
+    }
+
+    .notes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
+    }
+
+    .notes-hint {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .notes-text {
+      font-size: 0.85rem;
+      color: #374151;
+      white-space: pre-wrap;
+      margin-top: 4px;
+    }
+
+    .notes-text.empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* games grid */
+    .games-grid {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-start;
+    }
+
+    .game-col {
+      flex: 0 0 auto;
+      min-width: 0;
+      text-align: left;
+    }
+
+    .game-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .chip-group {
+      display: flex;
+      justify-content: flex-start;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .chip-group.small .chip {
+      font-size: 0.75rem;
+      padding: 4px 8px;
+    }
+
+    .chip {
+      border-radius: var(--radius-pill);
+      padding: 5px 10px;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      font-size: 0.8rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .chip.selected {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .small-muted {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: #374151;
+    }
+
+    .sheet-footer {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: var(--radius-pill);
+      border: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-secondary { background: #f3f4f6; color: #374151; }
+
+    /* Overlay for modals */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.35);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 50;
+    }
+
+    .overlay.visible {
+      display: flex;
+    }
+
+    .modal-sheet {
+      margin-top: 0;
+      max-width: 480px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- ========== EVENTS LIST VIEW ========== -->
+    <div id="eventsView">
+      <section class="event-header-card">
+        <div class="event-header-row">
+          <div class="event-header-main">
+            <div class="event-title">Riftbound Events</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="events-card">
+        <div class="events-header-row">
+          <span>Event</span>
+          <span style="text-align:right;">Record</span>
+        </div>
+        <div id="eventsBody"></div>
+        <div class="add-row" id="addEventTrigger">＋ Add event</div>
+      </section>
+
+      <!-- Add Event Sheet (inline) -->
+      <section class="sheet" id="eventSheet">
+        <div class="sheet-title">New Event</div>
+        <form id="eventForm">
+          <div class="field">
+            <div class="field-label">Event name</div>
+            <input type="text" id="eventName" placeholder="e.g. Regional Houston" />
+          </div>
+          <div class="field">
+            <div class="field-label">Your deck</div>
+            <input type="text" id="eventDeck" placeholder="e.g. Miss Fortune" />
+          </div>
+          <div class="field">
+            <div class="field-label">Link (optional)</div>
+            <input type="text" id="eventUrl" placeholder="e.g. decklist URL" />
+          </div>
+          <div class="sheet-footer">
+            <button type="button" class="btn btn-secondary" id="cancelEventBtn">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="submitEventBtn">Add event</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <!-- ========== EVENT DETAIL VIEW (ROUNDS + NOTES) ========== -->
+    <div id="eventDetailView" style="display:none;">
+      <section class="event-header-card">
+        <div class="event-header-row">
+          <button class="back-button" id="backToEventsBtn">← Events</button>
+          <div class="event-header-main">
+            <div class="event-title" id="detailEventName">Event</div>
+            <div class="event-subtitle">
+              <span id="detailEventDeck"></span>
+            </div>
+          </div>
+          <button class="icon-button" id="showEventNotesBtn" title="Toggle edit notes">📝</button>
+          <button class="icon-button" id="editEventBtn" title="Edit event">✏️</button>
+          <div class="record-pill" id="detailRecordDisplay">0-0</div>
+        </div>
+      </section>
+
+      <!-- Always-visible event notes card -->
+      <section class="notes-card" id="eventNotesCard">
+        <div class="notes-header">
+          <div class="sheet-title">Event notes</div>
+          <div class="notes-hint">Tap 📝 to edit</div>
+        </div>
+
+        <!-- View mode -->
+        <div id="eventNotesView">
+          <div id="eventCommentsText" class="notes-text empty">
+            No event notes yet. Tap 📝 to add.
+          </div>
+        </div>
+
+        <!-- Edit mode -->
+        <form id="eventNotesForm" style="display:none;">
+          <div class="field">
+            <div class="field-label">Comments</div>
+            <textarea id="eventCommentsInput" placeholder="Overall notes about the event, meta, misplays, etc."></textarea>
+          </div>
+          <div class="sheet-footer">
+            <button type="button" class="btn btn-secondary" id="cancelEventCommentsBtn">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="saveEventCommentsBtn">Save notes</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="rounds-card">
+        <div class="rounds-header-row">
+          <span>Round</span>
+          <span>Deck</span>
+          <span style="text-align:right;">Result</span>
+        </div>
+        <div id="roundsBody"></div>
+        <div class="add-row" id="addRoundTrigger">＋ Add round</div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Event Edit Overlay -->
+  <div class="overlay" id="eventOverlay">
+    <section class="sheet modal-sheet" id="eventEditSheet">
+      <div class="sheet-title">Edit Event</div>
+      <form id="eventEditForm">
+        <div class="field">
+          <div class="field-label">Event name</div>
+          <input type="text" id="eventEditName" />
+        </div>
+        <div class="field">
+          <div class="field-label">Your deck</div>
+          <input type="text" id="eventEditDeck" />
+        </div>
+        <div class="field">
+          <div class="field-label">Link (optional)</div>
+          <input type="text" id="eventEditUrl" />
+        </div>
+        <div class="sheet-footer">
+          <button type="button" class="btn btn-secondary" id="cancelEventEditBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveEventEditBtn">Save changes</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <!-- Round Add/Edit Overlay -->
+  <div class="overlay" id="roundOverlay">
+    <section class="sheet modal-sheet" id="roundSheet">
+      <div class="sheet-title" id="roundSheetTitle">Round 1</div>
+      <form id="roundForm">
+        <div class="field">
+          <div class="field-label">Round</div>
+          <input type="number" id="roundNumber" min="1" value="1" />
+        </div>
+
+        <div class="field">
+          <div class="field-label">Opponent's deck</div>
+          <input type="text" id="oppDeck" placeholder="e.g. Fire Aggro" />
+        </div>
+
+        <div class="field">
+          <div class="field-label">Round 1 die roll</div>
+          <div class="checkbox-row">
+            <span class="small-muted">Check if you won the die roll for this round.</span>
+            <label class="checkbox-label">
+              <input type="checkbox" id="dieRollWon" />
+              <span>Won die roll</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Games</div>
+          <div class="games-grid">
+            <!-- Game 1 -->
+            <div class="game-col" id="game1Col">
+              <div class="game-title">Game 1</div>
+              <div class="chip-group" data-chip-group="g1Result">
+                <div class="chip" data-value="W">W</div>
+                <div class="chip" data-value="L">L</div>
+                <div class="chip" data-value="T">T</div>
+              </div>
+              <div class="chip-group small" data-chip-group="g1Play">
+                <div class="chip" data-value="1st">1st</div>
+                <div class="chip" data-value="2nd">2nd</div>
+              </div>
+            </div>
+
+            <!-- Game 2 -->
+            <div class="game-col" id="game2Col" style="display:none;">
+              <div class="game-title">Game 2</div>
+              <div class="chip-group" data-chip-group="g2Result">
+                <div class="chip" data-value="W">W</div>
+                <div class="chip" data-value="L">L</div>
+                <div class="chip" data-value="T">T</div>
+              </div>
+              <div class="chip-group small" data-chip-group="g2Play">
+                <div class="chip" data-value="1st">1st</div>
+                <div class="chip" data-value="2nd">2nd</div>
+              </div>
+            </div>
+
+            <!-- Game 3 -->
+            <div class="game-col" id="game3Col" style="display:none;">
+              <div class="game-title">Game 3</div>
+              <div class="chip-group" data-chip-group="g3Result">
+                <div class="chip" data-value="W">W</div>
+                <div class="chip" data-value="L">L</div>
+                <div class="chip" data-value="T">T</div>
+              </div>
+              <div class="chip-group small" data-chip-group="g3Play">
+                <div class="chip" data-value="1st">1st</div>
+                <div class="chip" data-value="2nd">2nd</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="small-muted" id="matchSummary">
+          Set Game 1 to begin. Leaving Game 2/3 empty = Best of 1.
+        </div>
+
+        <div class="sheet-footer">
+          <button type="button" class="btn btn-secondary" id="cancelRoundBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveRoundBtn">Add round</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <!-- Round Detail Overlay -->
+  <div class="overlay" id="roundDetailOverlay">
+    <section class="sheet modal-sheet" id="roundDetailSheet">
+      <div class="sheet-title" id="roundDetailTitle">Round details</div>
+
+      <div class="field">
+        <div class="field-label">Opponent's deck</div>
+        <div id="roundDetailOppDeck"></div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">Die roll</div>
+        <div id="roundDetailDieRoll"></div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">Games</div>
+        <div id="roundDetailGames"></div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">Comments</div>
+        <textarea id="roundDetailComments" placeholder="Notes about this match, sequencing, misplays, sideboard plans..."></textarea>
+      </div>
+
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" id="closeRoundDetailBtn">Close</button>
+        <button type="button" class="btn btn-primary" id="saveRoundCommentsBtn">Save notes</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    let currentEvent = null;
+    let currentRounds = [];
+    let currentDetailRound = null;
+    let editingRoundId = null;
+
+    /* ---- API helpers ---- */
+
+    async function apiGetEvents() {
+      return (await fetch("/api/events")).json();
+    }
+
+    async function apiCreateEvent(payload) {
+      return (
+        await fetch("/api/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+      ).json();
+    }
+
+    async function apiUpdateEvent(id, payload) {
+      await fetch(`/api/events/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
+
+    async function apiDeleteEvent(id) {
+      await fetch(`/api/events/${id}`, { method: "DELETE" });
+    }
+
+    async function apiGetRounds(eventId) {
+      const url = eventId ? `/api/rounds?event_id=${eventId}` : "/api/rounds";
+      return (await fetch(url)).json();
+    }
+
+    async function apiCreateRound(payload) {
+      return (
+        await fetch("/api/rounds", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+      ).json();
+    }
+
+    async function apiUpdateRound(id, payload) {
+      await fetch(`/api/rounds/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
+
+    async function apiDeleteRound(id) {
+      await fetch(`/api/rounds/${id}`, { method: "DELETE" });
+    }
+
+    /* ---- Utility helpers ---- */
+
+    function resultLetter(r) {
+      if (r === "Win") return "W";
+      if (r === "Loss") return "L";
+      return "D";
+    }
+
+    function computeRecord(rounds) {
+      let w = 0, l = 0, d = 0;
+      for (const r of rounds) {
+        if (r.matchResult === "Win") w++;
+        else if (r.matchResult === "Loss") l++;
+        else if (r.matchResult === "Draw") d++;
+      }
+      return d ? `${w}-${l}-${d}` : `${w}-${l}`;
+    }
+
+    function groupByName(name) {
+      return document.querySelector(`[data-chip-group="${name}"]`);
+    }
+
+    function getChipValue(group) {
+      if (!group) return null;
+      const sel = group.querySelector(".chip.selected");
+      return sel ? sel.dataset.value : null;
+    }
+
+    function clearChipGroup(group) {
+      if (!group) return;
+      group.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
+    }
+
+    function getGameResult(n) {
+      return getChipValue(groupByName(`g${n}Result`));
+    }
+
+    function getGamePlay(n) {
+      return getChipValue(groupByName(`g${n}Play`));
+    }
+
+    function getGamesArray() {
+      const games = [];
+      const g1 = getGameResult(1);
+      const g2 = getGameResult(2);
+      const g3 = getGameResult(3);
+
+      if (g1) {
+        const p1 = getGamePlay(1);
+        games.push({ number: 1, result: g1, onPlay: p1 === "1st" });
+      }
+      if (g2) {
+        const p2 = getGamePlay(2);
+        games.push({ number: 2, result: g2, onPlay: p2 === "1st" });
+      }
+      if (g3) {
+        const p3 = getGamePlay(3);
+        games.push({ number: 3, result: g3, onPlay: p3 === "1st" });
+      }
+      return games;
+    }
+
+    function computeMatch(games) {
+      const wins = games.filter(g => g.result === "W").length;
+      const losses = games.filter(g => g.result === "L").length;
+      if (wins > losses) return "Win";
+      if (losses > wins) return "Loss";
+      return "Draw";
+    }
+
+    /* ---- Detail event deck display helper ---- */
+    function updateDetailEventDeckDisplay() {
+      const deckEl = document.getElementById("detailEventDeck");
+      deckEl.innerHTML = "";
+
+      if (!currentEvent || !currentEvent.yourDeck) {
+        return;
+      }
+
+      const text = currentEvent.yourDeck;
+      const url = currentEvent.linkUrl;
+
+      if (url) {
+        const a = document.createElement("a");
+        a.textContent = text;
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.style.color = "inherit";
+        a.style.textDecoration = "underline";
+        deckEl.appendChild(a);
+      } else {
+        deckEl.textContent = text;
+      }
+    }
+
+    /* ---- UI: Games visibility & summary ---- */
+
+    function updateGameVisibility() {
+      const g1 = getGameResult(1);
+      const g2 = getGameResult(2);
+
+      const g2Col = document.getElementById("game2Col");
+      const g3Col = document.getElementById("game3Col");
+
+      if (!g1) {
+        g2Col.style.display = "none";
+        g3Col.style.display = "none";
+        clearChipGroup(groupByName("g2Result"));
+        clearChipGroup(groupByName("g2Play"));
+        clearChipGroup(groupByName("g3Result"));
+        clearChipGroup(groupByName("g3Play"));
+        return;
+      }
+
+      g2Col.style.display = "block";
+
+      if (!g2) {
+        g3Col.style.display = "none";
+        clearChipGroup(groupByName("g3Result"));
+        clearChipGroup(groupByName("g3Play"));
+      } else {
+        g3Col.style.display = "block";
+      }
+    }
+
+    function updateMatchSummary() {
+      const games = getGamesArray();
+      const el = document.getElementById("matchSummary");
+
+      if (games.length === 0) {
+        el.textContent = "Set Game 1 to begin. Leaving Game 2/3 empty = Best of 1.";
+        return;
+      }
+
+      const pattern = games.map(g => g.result).join("");
+      const wins = games.filter(g => g.result === "W").length;
+      const losses = games.filter(g => g.result === "L").length;
+      const result = computeMatch(games);
+
+      el.textContent = `Match: ${result} (${pattern}) – ${wins}-${losses}`;
+    }
+
+    function initChips() {
+      document.querySelectorAll(".chip-group").forEach(group => {
+        group.addEventListener("click", e => {
+          const chip = e.target.closest(".chip");
+          if (!chip) return;
+
+          const already = chip.classList.contains("selected");
+          group.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
+          if (!already) chip.classList.add("selected");
+
+          const name = group.dataset.chipGroup || "";
+          if (name.startsWith("g")) {
+            updateGameVisibility();
+            updateMatchSummary();
+          }
+        });
+      });
+    }
+
+    /* ---- Event notes helpers ---- */
+
+    function updateEventNotesViewFromCurrent() {
+      const textEl = document.getElementById("eventCommentsText");
+      if (!currentEvent || !currentEvent.comments) {
+        textEl.textContent = "No event notes yet. Tap 📝 to add.";
+        textEl.classList.add("empty");
+      } else {
+        textEl.textContent = currentEvent.comments;
+        textEl.classList.remove("empty");
+      }
+    }
+
+    function toggleEventNotes() {
+      if (!currentEvent) return;
+      const form = document.getElementById("eventNotesForm");
+      const view = document.getElementById("eventNotesView");
+      const textarea = document.getElementById("eventCommentsInput");
+
+      const isHidden = form.style.display === "none" || form.style.display === "";
+      if (isHidden) {
+        textarea.value = currentEvent.comments || "";
+        form.style.display = "block";
+        view.style.display = "none";
+        textarea.focus();
+      } else {
+        form.style.display = "none";
+        view.style.display = "block";
+      }
+    }
+
+    function cancelEventComments() {
+      if (!currentEvent) return;
+      const form = document.getElementById("eventNotesForm");
+      const view = document.getElementById("eventNotesView");
+      form.style.display = "none";
+      view.style.display = "block";
+      updateEventNotesViewFromCurrent();
+    }
+
+    async function handleEventNotesSubmit(e) {
+      e.preventDefault();
+      if (!currentEvent) return;
+      const textarea = document.getElementById("eventCommentsInput");
+      const text = textarea.value;
+      await apiUpdateEvent(currentEvent.id, { comments: text });
+      currentEvent.comments = text;
+      updateEventNotesViewFromCurrent();
+      cancelEventComments();
+      alert("Event notes saved.");
+    }
+
+    /* ---- Events view ---- */
+
+    function showEventsView() {
+      document.getElementById("eventsView").style.display = "block";
+      document.getElementById("eventDetailView").style.display = "none";
+
+      // Hide overlays
+      document.getElementById("eventOverlay").classList.remove("visible");
+      document.getElementById("roundOverlay").classList.remove("visible");
+      document.getElementById("roundDetailOverlay").classList.remove("visible");
+      document.getElementById("eventEditSheet").classList.remove("visible");
+      document.getElementById("roundSheet").classList.remove("visible");
+      document.getElementById("roundDetailSheet").classList.remove("visible");
+
+      // reset notes editor
+      document.getElementById("eventNotesForm").style.display = "none";
+      document.getElementById("eventNotesView").style.display = "block";
+      currentEvent = null;
+      currentDetailRound = null;
+      editingRoundId = null;
+    }
+
+    function showEventDetailView() {
+      document.getElementById("eventsView").style.display = "none";
+      document.getElementById("eventDetailView").style.display = "block";
+    }
+
+    async function renderEvents() {
+      const events = await apiGetEvents();
+      const body = document.getElementById("eventsBody");
+      body.innerHTML = "";
+
+      if (!events.length) {
+        const empty = document.createElement("div");
+        empty.style.padding = "8px 18px 10px";
+        empty.style.fontSize = "0.85rem";
+        empty.style.color = "#6b7280";
+        empty.textContent = "No events yet. Add one to get started.";
+        body.appendChild(empty);
+        return;
+      }
+
+      events.forEach(ev => {
+        const row = document.createElement("div");
+        row.className = "event-row";
+
+        const left = document.createElement("div");
+        const nameEl = document.createElement("div");
+        nameEl.className = "event-name";
+        nameEl.textContent = ev.name;
+        const deckEl = document.createElement("div");
+        deckEl.className = "event-deck";
+        deckEl.textContent = ev.yourDeck ? ev.yourDeck : "";
+        left.appendChild(nameEl);
+        if (ev.yourDeck) left.appendChild(deckEl);
+
+        const wrap = document.createElement("div");
+        wrap.className = "event-record-wrap";
+
+        const recEl = document.createElement("div");
+        recEl.className = "event-record";
+        recEl.textContent = ev.record || "0-0";
+
+        const delEl = document.createElement("div");
+        delEl.className = "event-delete";
+        delEl.textContent = "Delete";
+        delEl.onclick = async (e) => {
+          e.stopPropagation();
+          if (confirm("Delete this event and all its rounds?")) {
+            await apiDeleteEvent(ev.id);
+            if (currentEvent && currentEvent.id === ev.id) {
+              showEventsView();
+            }
+            renderEvents();
+          }
+        };
+
+        wrap.appendChild(recEl);
+        wrap.appendChild(delEl);
+
+        row.appendChild(left);
+        row.appendChild(wrap);
+
+        row.addEventListener("click", () => openEvent(ev));
+        body.appendChild(row);
+      });
+    }
+
+    function showEventSheet() {
+      document.getElementById("eventSheet").classList.add("visible");
+    }
+
+    function hideEventSheet() {
+      document.getElementById("eventSheet").classList.remove("visible");
+    }
+
+    async function handleEventSubmit(e) {
+      e.preventDefault();
+      const nameInput = document.getElementById("eventName");
+      const deckInput = document.getElementById("eventDeck");
+      const urlInput  = document.getElementById("eventUrl");
+
+      const name = nameInput.value.trim();
+      const deck = deckInput.value.trim();
+      const url  = urlInput.value.trim();
+
+      if (!name || !deck) {
+        alert("Enter both an event name and your deck.");
+        return;
+      }
+
+      const ev = await apiCreateEvent({
+        name,
+        yourDeck: deck,
+        linkUrl: url || null
+      });
+
+      nameInput.value = "";
+      deckInput.value = "";
+      urlInput.value = "";
+      hideEventSheet();
+      await renderEvents();
+      openEvent(ev);
+    }
+
+    /* ---- Event detail view (rounds) ---- */
+
+    async function openEvent(ev) {
+      currentEvent = ev;
+      document.getElementById("detailEventName").textContent = ev.name;
+      updateDetailEventDeckDisplay();
+      // reset notes editor to view mode for this event
+      document.getElementById("eventNotesForm").style.display = "none";
+      document.getElementById("eventNotesView").style.display = "block";
+      updateEventNotesViewFromCurrent();
+      showEventDetailView();
+      await renderRoundsForCurrentEvent();
+    }
+
+    async function renderRoundsForCurrentEvent() {
+      if (!currentEvent) return;
+      const rounds = await apiGetRounds(currentEvent.id);
+      currentRounds = rounds;
+
+      const body = document.getElementById("roundsBody");
+      body.innerHTML = "";
+
+      rounds.sort((a, b) => a.roundNumber - b.roundNumber);
+
+      rounds.forEach(r => {
+        const row = document.createElement("div");
+        row.className = "round-row";
+        if (r.matchResult === "Win") row.classList.add("row-win");
+        else if (r.matchResult === "Loss") row.classList.add("row-loss");
+        else row.classList.add("row-draw");
+
+        const left = document.createElement("div");
+        left.className = "round-roundnum";
+        const roundNumSpan = document.createElement("span");
+        roundNumSpan.textContent = r.roundNumber;
+        left.appendChild(roundNumSpan);
+        if (r.dieRollWon) {
+          const dieSpan = document.createElement("span");
+          dieSpan.className = "die";
+          dieSpan.textContent = "🎲";
+          left.appendChild(dieSpan);
+        }
+
+        const mid = document.createElement("div");
+        const deckName = document.createElement("div");
+        deckName.className = "round-deck-main";
+        deckName.textContent = r.oppDeck || "Unknown";
+        mid.appendChild(deckName);
+
+        const actions = document.createElement("div");
+        actions.className = "round-actions";
+
+        const editEl = document.createElement("span");
+        editEl.className = "round-edit-btn";
+        editEl.textContent = "✏️ Edit";
+        editEl.onclick = (e) => {
+          e.stopPropagation();
+          openRoundForEdit(r);
+        };
+
+        const delEl = document.createElement("span");
+        delEl.className = "round-delete-btn";
+        delEl.textContent = "Delete";
+        delEl.onclick = async (e) => {
+          e.stopPropagation();
+          if (confirm("Delete this round?")) {
+            await apiDeleteRound(r.id);
+            renderRoundsForCurrentEvent();
+          }
+        };
+
+        actions.appendChild(editEl);
+        actions.appendChild(document.createTextNode(" · "));
+        actions.appendChild(delEl);
+        mid.appendChild(actions);
+
+        const right = document.createElement("div");
+        right.className = "round-result";
+        const main = document.createElement("div");
+        main.className = "result-main-letter";
+        main.textContent = resultLetter(r.matchResult);
+        right.appendChild(main);
+
+        const pattern = (r.games || []).map(g => g.result).join("");
+        if (pattern) {
+          const p = document.createElement("div");
+          p.className = "result-pattern";
+          p.textContent = pattern;
+          right.appendChild(p);
+        }
+
+        row.appendChild(left);
+        row.appendChild(mid);
+        row.appendChild(right);
+
+        row.addEventListener("click", () => showRoundDetails(r));
+        body.appendChild(row);
+      });
+
+      document.getElementById("detailRecordDisplay").textContent = computeRecord(rounds);
+    }
+
+    /* ---- Event edit overlay ---- */
+
+    function showEventEditSheet() {
+      if (!currentEvent) return;
+      document.getElementById("eventEditName").value = currentEvent.name || "";
+      document.getElementById("eventEditDeck").value = currentEvent.yourDeck || "";
+      document.getElementById("eventEditUrl").value = currentEvent.linkUrl || "";
+      document.getElementById("eventOverlay").classList.add("visible");
+      document.getElementById("eventEditSheet").classList.add("visible");
+    }
+
+    function hideEventEditSheet() {
+      document.getElementById("eventEditSheet").classList.remove("visible");
+      document.getElementById("eventOverlay").classList.remove("visible");
+    }
+
+    async function handleEventEditSubmit(e) {
+      e.preventDefault();
+      if (!currentEvent) return;
+
+      const name = document.getElementById("eventEditName").value.trim();
+      const deck = document.getElementById("eventEditDeck").value.trim();
+      const url  = document.getElementById("eventEditUrl").value.trim();
+
+      if (!name || !deck) {
+        alert("Event name and your deck cannot be empty.");
+        return;
+      }
+
+      await apiUpdateEvent(currentEvent.id, {
+        name,
+        yourDeck: deck,
+        linkUrl: url || null
+      });
+
+      currentEvent.name = name;
+      currentEvent.yourDeck = deck;
+      currentEvent.linkUrl = url || null;
+
+      document.getElementById("detailEventName").textContent = name;
+      updateDetailEventDeckDisplay();
+
+      hideEventEditSheet();
+      renderEvents();
+    }
+
+    /* ---- Round Add/Edit ---- */
+
+    function resetRoundFormForCreate() {
+      editingRoundId = null;
+      document.getElementById("saveRoundBtn").textContent = "Add round";
+      document.getElementById("roundNumber").value = (currentRounds.length || 0) + 1;
+      document.getElementById("oppDeck").value = "";
+      document.getElementById("dieRollWon").checked = false;
+      ["g1Result","g1Play","g2Result","g2Play","g3Result","g3Play"].forEach(name =>
+        clearChipGroup(groupByName(name))
+      );
+      updateGameVisibility();
+      updateMatchSummary();
+      updateSheetRoundLabel();
+    }
+
+    function showRoundSheet() {
+      document.getElementById("roundDetailOverlay").classList.remove("visible");
+      document.getElementById("roundDetailSheet").classList.remove("visible");
+      document.getElementById("roundOverlay").classList.add("visible");
+      document.getElementById("roundSheet").classList.add("visible");
+    }
+
+    function hideRoundSheet() {
+      document.getElementById("roundSheet").classList.remove("visible");
+      document.getElementById("roundOverlay").classList.remove("visible");
+      editingRoundId = null;
+      document.getElementById("saveRoundBtn").textContent = "Add round";
+    }
+
+    function openRoundForCreate() {
+      resetRoundFormForCreate();
+      showRoundSheet();
+    }
+
+    function openRoundForEdit(round) {
+      editingRoundId = round.id;
+      document.getElementById("saveRoundBtn").textContent = "Save changes";
+      document.getElementById("roundNumber").value = round.roundNumber;
+      document.getElementById("oppDeck").value = round.oppDeck || "";
+      document.getElementById("dieRollWon").checked = !!round.dieRollWon;
+
+      ["g1Result","g1Play","g2Result","g2Play","g3Result","g3Play"].forEach(name =>
+        clearChipGroup(groupByName(name))
+      );
+
+      const gamesByNum = {};
+      (round.games || []).forEach(g => { gamesByNum[g.number] = g; });
+
+      [1,2,3].forEach(n => {
+        const g = gamesByNum[n];
+        if (g) {
+          const resGroup = groupByName(`g${n}Result`);
+          const playGroup = groupByName(`g${n}Play`);
+          if (resGroup) {
+            resGroup.querySelectorAll(".chip").forEach(ch => {
+              if (ch.dataset.value === g.result) ch.classList.add("selected");
+            });
+          }
+          if (playGroup) {
+            playGroup.querySelectorAll(".chip").forEach(ch => {
+              const val = g.onPlay ? "1st" : "2nd";
+              if (ch.dataset.value === val) ch.classList.add("selected");
+            });
+          }
+        }
+      });
+
+      updateGameVisibility();
+      updateMatchSummary();
+      updateSheetRoundLabel();
+      showRoundSheet();
+    }
+
+    /* ---- Round detail & comments ---- */
+
+    function showRoundDetails(round) {
+      hideRoundSheet();
+      currentDetailRound = round;
+
+      document.getElementById("roundDetailTitle").textContent = `Round ${round.roundNumber}`;
+      document.getElementById("roundDetailOppDeck").textContent =
+        round.oppDeck || "Unknown deck";
+
+      const die = round.dieRollWon ? "You won the die roll." :
+        "You did not win the die roll (or went second).";
+      document.getElementById("roundDetailDieRoll").textContent = die;
+
+      const gamesDiv = document.getElementById("roundDetailGames");
+      gamesDiv.innerHTML = "";
+      (round.games || []).forEach(g => {
+        const line = document.createElement("div");
+        const play = g.onPlay ? "1st" : "2nd";
+        line.textContent = `Game ${g.number}: ${g.result} (${play})`;
+        gamesDiv.appendChild(line);
+      });
+
+      if (!round.games || !round.games.length) {
+        const line = document.createElement("div");
+        line.textContent = "No games recorded.";
+        gamesDiv.appendChild(line);
+      }
+
+      document.getElementById("roundDetailComments").value = round.comments || "";
+
+      document.getElementById("roundDetailOverlay").classList.add("visible");
+      document.getElementById("roundDetailSheet").classList.add("visible");
+    }
+
+    function hideRoundDetails() {
+      document.getElementById("roundDetailSheet").classList.remove("visible");
+      document.getElementById("roundDetailOverlay").classList.remove("visible");
+      currentDetailRound = null;
+    }
+
+    async function saveRoundComments() {
+      if (!currentDetailRound) return;
+      const text = document.getElementById("roundDetailComments").value;
+      await apiUpdateRound(currentDetailRound.id, { comments: text });
+      currentDetailRound.comments = text;
+      alert("Round notes saved.");
+    }
+
+    function updateSheetRoundLabel() {
+      const n = document.getElementById("roundNumber").value || "1";
+      const prefix = editingRoundId ? "Edit Round" : "Round";
+      document.getElementById("roundSheetTitle").textContent = `${prefix} ${n}`;
+    }
+
+    async function handleRoundSubmit(e) {
+      e.preventDefault();
+      if (!currentEvent) {
+        alert("Select an event first.");
+        return;
+      }
+
+      const roundNumber = parseInt(document.getElementById("roundNumber").value, 10);
+      const oppDeck = document.getElementById("oppDeck").value.trim();
+      const dieRollWon = document.getElementById("dieRollWon").checked;
+
+      if (!oppDeck) {
+        alert("Enter opponent deck.");
+        return;
+      }
+
+      const games = getGamesArray();
+      if (games.length === 0) {
+        alert("Set at least Game 1 result.");
+        return;
+      }
+
+      if (editingRoundId) {
+        await apiUpdateRound(editingRoundId, {
+          roundNumber,
+          oppDeck,
+          dieRollWon,
+          games
+        });
+      } else {
+        await apiCreateRound({
+          eventId: currentEvent.id,
+          roundNumber,
+          oppDeck,
+          games,
+          dieRollWon
+        });
+      }
+
+      hideRoundSheet();
+
+      if (!editingRoundId) {
+        document.getElementById("roundNumber").value = roundNumber + 1;
+      }
+      editingRoundId = null;
+      document.getElementById("saveRoundBtn").textContent = "Add round";
+
+      document.getElementById("oppDeck").value = "";
+      document.getElementById("dieRollWon").checked = false;
+      ["g1Result","g1Play","g2Result","g2Play","g3Result","g3Play"].forEach(name =>
+        clearChipGroup(groupByName(name))
+      );
+      updateGameVisibility();
+      updateMatchSummary();
+
+      renderRoundsForCurrentEvent();
+    }
+
+    /* ---- Init ---- */
+
+    document.addEventListener("DOMContentLoaded", () => {
+      initChips();
+      updateSheetRoundLabel();
+      updateGameVisibility();
+      updateMatchSummary();
+      renderEvents();
+
+      // Events view
+      document.getElementById("addEventTrigger").onclick = showEventSheet;
+      document.getElementById("cancelEventBtn").onclick = hideEventSheet;
+      document.getElementById("eventForm").onsubmit = handleEventSubmit;
+
+      // Event detail nav
+      document.getElementById("backToEventsBtn").onclick = () => {
+        showEventsView();
+        renderEvents();
+      };
+
+      // Event notes (inline card)
+      document.getElementById("showEventNotesBtn").onclick = toggleEventNotes;
+      document.getElementById("cancelEventCommentsBtn").onclick = cancelEventComments;
+      document.getElementById("eventNotesForm").onsubmit = handleEventNotesSubmit;
+
+      // Event edit overlay
+      document.getElementById("editEventBtn").onclick = showEventEditSheet;
+      document.getElementById("cancelEventEditBtn").onclick = hideEventEditSheet;
+      document.getElementById("eventEditForm").onsubmit = handleEventEditSubmit;
+
+      // Rounds view
+      document.getElementById("addRoundTrigger").onclick = openRoundForCreate;
+      document.getElementById("cancelRoundBtn").onclick = hideRoundSheet;
+      document.getElementById("roundForm").onsubmit = handleRoundSubmit;
+      document.getElementById("roundNumber").oninput = updateSheetRoundLabel;
+
+      // Round details overlay
+      document.getElementById("closeRoundDetailBtn").onclick = hideRoundDetails;
+      document.getElementById("saveRoundCommentsBtn").onclick = saveRoundComments;
+    });
+  </script>
+</body>
+</html>
