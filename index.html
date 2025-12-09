@@ -476,6 +476,29 @@
     .btn-primary { background: var(--accent); color: #fff; }
     .btn-secondary { background: #f3f4f6; color: #374151; }
 
+    /* Toast notification */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #1f2937;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 10000;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
     /* Overlay for modals */
     .overlay {
       position: fixed;
@@ -897,6 +920,9 @@
     </section>
   </div>
 
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+
   <script>
     let currentEvent = null;
     let currentRounds = [];
@@ -904,6 +930,18 @@
     let editingRoundId = null;
     let currentUser = null;
     let authMode = "login"; // "login" | "register"
+
+    /* ---- Toast notification ---- */
+
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+
+      setTimeout(() => {
+        toast.classList.remove("show");
+      }, 2000);
+    }
 
     /* ---- API helpers ---- */
 
@@ -1178,6 +1216,7 @@
       currentEvent.comments = text;
       updateEventNotesViewFromCurrent();
       hideEventNotesOverlay();
+      showToast("✅ Event notes saved");
     }
 
     /* ---- Auth view ---- */
@@ -1942,6 +1981,7 @@
 
       try {
         await navigator.clipboard.writeText(text);
+        showToast("📋 Copied to clipboard");
       } catch (err) {
         console.error("Failed to copy to clipboard:", err);
         alert("❌ Failed to copy to clipboard. Text:\n\n" + text);
