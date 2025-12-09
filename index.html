@@ -34,6 +34,55 @@
       padding: 12px 12px 32px;
     }
 
+    /* Auth view */
+    #authView {
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 0 12px;
+    }
+
+    .auth-card {
+      background: var(--card);
+      border-radius: var(--radius-lg);
+      padding: 18px 18px 20px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .auth-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 4px;
+    }
+
+    .auth-subtitle {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .auth-toggle {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .auth-toggle button {
+      border: none;
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 0;
+    }
+
+    .auth-error {
+      font-size: 0.8rem;
+      color: #b91c1c;
+      margin-bottom: 8px;
+      display: none;
+    }
+
     /* Header card */
     .event-header-card {
       background: var(--card);
@@ -98,6 +147,24 @@
       color: var(--muted);
     }
 
+    /* User info / logout */
+    .user-pill {
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .user-pill button {
+      border: none;
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 0;
+    }
+
     /* Generic add row */
     .add-row {
       padding: 10px 18px 12px;
@@ -160,7 +227,7 @@
       color: #9ca3af;
       cursor: pointer;
       margin-top: 3px;
-      display: inline; /* only the text is clickable */
+      display: inline;
     }
 
     /* Rounds list for an event */
@@ -218,7 +285,7 @@
     .round-edit-btn,
     .round-delete-btn {
       cursor: pointer;
-      display: inline; /* only text area clickable */
+      display: inline;
     }
 
     .round-edit-btn {
@@ -269,6 +336,7 @@
 
     input[type="text"],
     input[type="number"],
+    input[type="password"],
     textarea {
       width: 100%;
       padding: 8px 10px;
@@ -291,7 +359,7 @@
       padding: 12px 18px 14px;
       box-shadow: var(--shadow-soft);
       margin-bottom: 12px;
-      min-height: 110px; /* keep size similar whether editing or not */
+      min-height: 110px;
     }
 
     .notes-header {
@@ -432,7 +500,40 @@
   </style>
 </head>
 <body>
-  <div class="app-shell">
+  <!-- AUTH VIEW -->
+  <div id="authView">
+    <div class="auth-card">
+      <div class="auth-title" id="authTitle">Sign in</div>
+      <div class="auth-subtitle" id="authSubtitle">
+        Log in to your Riftbound tracker or create a new account.
+      </div>
+
+      <div id="authError" class="auth-error"></div>
+
+      <form id="authForm">
+        <div class="field">
+          <div class="field-label">Username</div>
+          <input type="text" id="authUsername" autocomplete="username" />
+        </div>
+        <div class="field">
+          <div class="field-label">Password</div>
+          <input type="password" id="authPassword" autocomplete="current-password" />
+        </div>
+        <div class="sheet-footer">
+          <button type="button" class="btn btn-secondary" id="authCancelBtn">Clear</button>
+          <button type="submit" class="btn btn-primary" id="authSubmitBtn">Log in</button>
+        </div>
+      </form>
+
+      <div class="auth-toggle">
+        <span id="authToggleText">Need an account?</span>
+        <button type="button" id="authToggleBtn">Register</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP VIEW -->
+  <div id="appShell" class="app-shell" style="display:none;">
 
     <!-- ========== EVENTS LIST VIEW ========== -->
     <div id="eventsView">
@@ -440,6 +541,13 @@
         <div class="event-header-row">
           <div class="event-header-main">
             <div class="event-title">Riftbound Events</div>
+            <div class="event-subtitle">
+              <span id="currentUserLabel"></span>
+            </div>
+          </div>
+          <div class="user-pill">
+            <span id="userPillName"></span>
+            <button type="button" id="logoutBtn">Logout</button>
           </div>
         </div>
       </section>
@@ -680,60 +788,82 @@
     let currentRounds = [];
     let currentDetailRound = null;
     let editingRoundId = null;
+    let currentUser = null;
+    let authMode = "login"; // "login" | "register"
 
     /* ---- API helpers ---- */
 
+    async function apiGet(path, opts = {}) {
+      const res = await fetch(path, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        ...opts,
+      });
+      return res.json();
+    }
+
+    async function apiPost(path, body) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return res;
+    }
+
+    async function apiPatch(path, body) {
+      const res = await fetch(path, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return res;
+    }
+
+    async function apiDelete(path) {
+      const res = await fetch(path, { method: "DELETE" });
+      return res;
+    }
+
     async function apiGetEvents() {
-      return (await fetch("/api/events")).json();
+      return apiGet("/api/events");
     }
 
     async function apiCreateEvent(payload) {
-      return (
-        await fetch("/api/events", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        })
-      ).json();
+      const res = await apiPost("/api/events", payload);
+      if (!res.ok) throw new Error("Failed to create event");
+      return res.json();
     }
 
     async function apiUpdateEvent(id, payload) {
-      await fetch(`/api/events/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await apiPatch(`/api/events/${id}`, payload);
+      if (!res.ok) throw new Error("Failed to update event");
     }
 
     async function apiDeleteEvent(id) {
-      await fetch(`/api/events/${id}`, { method: "DELETE" });
+      const res = await apiDelete(`/api/events/${id}`);
+      if (!res.ok) throw new Error("Failed to delete event");
     }
 
     async function apiGetRounds(eventId) {
-      const url = eventId ? `/api/rounds?event_id=${eventId}` : "/api/rounds";
-      return (await fetch(url)).json();
+      const res = await apiGet(`/api/rounds?event_id=${eventId}`);
+      return res;
     }
 
     async function apiCreateRound(payload) {
-      return (
-        await fetch("/api/rounds", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        })
-      ).json();
+      const res = await apiPost("/api/rounds", payload);
+      if (!res.ok) throw new Error("Failed to create round");
+      return res.json();
     }
 
     async function apiUpdateRound(id, payload) {
-      await fetch(`/api/rounds/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await apiPatch(`/api/rounds/${id}`, payload);
+      if (!res.ok) throw new Error("Failed to update round");
     }
 
     async function apiDeleteRound(id) {
-      await fetch(`/api/rounds/${id}`, { method: "DELETE" });
+      const res = await apiDelete(`/api/rounds/${id}`);
+      if (!res.ok) throw new Error("Failed to delete round");
     }
 
     /* ---- Utility helpers ---- */
@@ -950,13 +1080,134 @@
       alert("Event notes saved.");
     }
 
+    /* ---- Auth view ---- */
+
+    function setAuthMode(mode) {
+      authMode = mode;
+      const title = document.getElementById("authTitle");
+      const subtitle = document.getElementById("authSubtitle");
+      const toggleText = document.getElementById("authToggleText");
+      const toggleBtn = document.getElementById("authToggleBtn");
+      const submitBtn = document.getElementById("authSubmitBtn");
+
+      const error = document.getElementById("authError");
+      error.style.display = "none";
+      error.textContent = "";
+
+      if (mode === "login") {
+        title.textContent = "Sign in";
+        subtitle.textContent = "Log in to your Riftbound tracker.";
+        toggleText.textContent = "Need an account?";
+        toggleBtn.textContent = "Register";
+        submitBtn.textContent = "Log in";
+      } else {
+        title.textContent = "Create account";
+        subtitle.textContent = "Make an account to track your events.";
+        toggleText.textContent = "Already have an account?";
+        toggleBtn.textContent = "Log in";
+        submitBtn.textContent = "Register";
+      }
+    }
+
+    async function checkCurrentUser() {
+      try {
+        const data = await apiGet("/api/me");
+        if (data && data.user) {
+          currentUser = data.user;
+          showAppForUser();
+        } else {
+          showAuthView();
+        }
+      } catch (e) {
+        showAuthView();
+      }
+    }
+
+    function showAuthError(message) {
+      const error = document.getElementById("authError");
+      error.textContent = message;
+      error.style.display = "block";
+    }
+
+    function clearAuthFields() {
+      document.getElementById("authUsername").value = "";
+      document.getElementById("authPassword").value = "";
+      const error = document.getElementById("authError");
+      error.textContent = "";
+      error.style.display = "none";
+    }
+
+    function showAuthView() {
+      document.getElementById("authView").style.display = "block";
+      document.getElementById("appShell").style.display = "none";
+    }
+
+    function showAppForUser() {
+      document.getElementById("authView").style.display = "none";
+      document.getElementById("appShell").style.display = "block";
+
+      const name = currentUser ? currentUser.username : "";
+      document.getElementById("currentUserLabel").textContent =
+        name ? `Signed in as ${name}` : "";
+      document.getElementById("userPillName").textContent =
+        name ? `@${name}` : "";
+
+      renderEvents();
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const username = document.getElementById("authUsername").value.trim();
+      const password = document.getElementById("authPassword").value.trim();
+      if (!username || !password) {
+        showAuthError("Enter both username and password.");
+        return;
+      }
+
+      try {
+        let res;
+        if (authMode === "login") {
+          res = await apiPost("/api/login", { username, password });
+        } else {
+          res = await apiPost("/api/register", { username, password });
+        }
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showAuthError(data.error || "Something went wrong.");
+          return;
+        }
+
+        const user = await res.json();
+        currentUser = user;
+        clearAuthFields();
+        showAppForUser();
+      } catch (err) {
+        console.error(err);
+        showAuthError("Server error. Check console/logs.");
+      }
+    }
+
+    async function handleLogout() {
+      try {
+        await apiPost("/api/logout", {});
+      } catch (e) {
+        // ignore
+      }
+      currentUser = null;
+      currentEvent = null;
+      currentRounds = [];
+      currentDetailRound = null;
+      editingRoundId = null;
+      showAuthView();
+    }
+
     /* ---- Events view ---- */
 
     function showEventsView() {
       document.getElementById("eventsView").style.display = "block";
       document.getElementById("eventDetailView").style.display = "none";
 
-      // Hide overlays
       document.getElementById("eventOverlay").classList.remove("visible");
       document.getElementById("roundOverlay").classList.remove("visible");
       document.getElementById("roundDetailOverlay").classList.remove("visible");
@@ -964,7 +1215,6 @@
       document.getElementById("roundSheet").classList.remove("visible");
       document.getElementById("roundDetailSheet").classList.remove("visible");
 
-      // reset notes editor
       document.getElementById("eventNotesForm").style.display = "none";
       document.getElementById("eventNotesView").style.display = "block";
       currentEvent = null;
@@ -978,9 +1228,17 @@
     }
 
     async function renderEvents() {
-      const events = await apiGetEvents();
       const body = document.getElementById("eventsBody");
       body.innerHTML = "";
+      let events;
+
+      try {
+        events = await apiGetEvents();
+      } catch (e) {
+        body.innerHTML =
+          '<div style="padding:8px 18px 10px;font-size:0.85rem;color:#b91c1c;">Error loading events (maybe not logged in).</div>';
+        return;
+      }
 
       if (!events.length) {
         const empty = document.createElement("div");
@@ -1019,11 +1277,15 @@
         delEl.onclick = async (e) => {
           e.stopPropagation();
           if (confirm("Delete this event and all its rounds?")) {
-            await apiDeleteEvent(ev.id);
-            if (currentEvent && currentEvent.id === ev.id) {
-              showEventsView();
+            try {
+              await apiDeleteEvent(ev.id);
+              if (currentEvent && currentEvent.id === ev.id) {
+                showEventsView();
+              }
+              renderEvents();
+            } catch (err) {
+              alert("Failed to delete event.");
             }
-            renderEvents();
           }
         };
 
@@ -1061,18 +1323,22 @@
         return;
       }
 
-      const ev = await apiCreateEvent({
-        name,
-        yourDeck: deck,
-        linkUrl: url || null
-      });
+      try {
+        const ev = await apiCreateEvent({
+          name,
+          yourDeck: deck,
+          linkUrl: url || null,
+        });
 
-      nameInput.value = "";
-      deckInput.value = "";
-      urlInput.value = "";
-      hideEventSheet();
-      await renderEvents();
-      openEvent(ev);
+        nameInput.value = "";
+        deckInput.value = "";
+        urlInput.value = "";
+        hideEventSheet();
+        await renderEvents();
+        openEvent(ev);
+      } catch (err) {
+        alert("Failed to create event.");
+      }
     }
 
     /* ---- Event detail view (rounds) ---- */
@@ -1080,8 +1346,10 @@
     async function openEvent(ev) {
       currentEvent = ev;
       document.getElementById("detailEventName").textContent = ev.name;
+      currentEvent.yourDeck = ev.yourDeck;
+      currentEvent.linkUrl = ev.linkUrl;
       updateDetailEventDeckDisplay();
-      // reset notes editor to view mode for this event
+
       document.getElementById("eventNotesForm").style.display = "none";
       document.getElementById("eventNotesView").style.display = "block";
       updateEventNotesViewFromCurrent();
@@ -1091,7 +1359,15 @@
 
     async function renderRoundsForCurrentEvent() {
       if (!currentEvent) return;
-      const rounds = await apiGetRounds(currentEvent.id);
+      let rounds;
+      try {
+        rounds = await apiGetRounds(currentEvent.id);
+      } catch (e) {
+        document.getElementById("roundsBody").innerHTML =
+          '<div style="padding:8px 18px 10px;font-size:0.85rem;color:#b91c1c;">Error loading rounds.</div>';
+        return;
+      }
+
       currentRounds = rounds;
 
       const body = document.getElementById("roundsBody");
@@ -1141,8 +1417,12 @@
         delEl.onclick = async (e) => {
           e.stopPropagation();
           if (confirm("Delete this round?")) {
-            await apiDeleteRound(r.id);
-            renderRoundsForCurrentEvent();
+            try {
+              await apiDeleteRound(r.id);
+              renderRoundsForCurrentEvent();
+            } catch (err) {
+              alert("Failed to delete round.");
+            }
           }
         };
 
@@ -1206,11 +1486,16 @@
         return;
       }
 
-      await apiUpdateEvent(currentEvent.id, {
-        name,
-        yourDeck: deck,
-        linkUrl: url || null
-      });
+      try {
+        await apiUpdateEvent(currentEvent.id, {
+          name,
+          yourDeck: deck,
+          linkUrl: url || null,
+        });
+      } catch (err) {
+        alert("Failed to update event.");
+        return;
+      }
 
       currentEvent.name = name;
       currentEvent.yourDeck = deck;
@@ -1341,7 +1626,12 @@
     async function saveRoundComments() {
       if (!currentDetailRound) return;
       const text = document.getElementById("roundDetailComments").value;
-      await apiUpdateRound(currentDetailRound.id, { comments: text });
+      try {
+        await apiUpdateRound(currentDetailRound.id, { comments: text });
+      } catch (err) {
+        alert("Failed to save notes.");
+        return;
+      }
       currentDetailRound.comments = text;
       alert("Round notes saved.");
     }
@@ -1374,21 +1664,26 @@
         return;
       }
 
-      if (editingRoundId) {
-        await apiUpdateRound(editingRoundId, {
-          roundNumber,
-          oppDeck,
-          dieRollWon,
-          games
-        });
-      } else {
-        await apiCreateRound({
-          eventId: currentEvent.id,
-          roundNumber,
-          oppDeck,
-          games,
-          dieRollWon
-        });
+      try {
+        if (editingRoundId) {
+          await apiUpdateRound(editingRoundId, {
+            roundNumber,
+            oppDeck,
+            dieRollWon,
+            games,
+          });
+        } else {
+          await apiCreateRound({
+            eventId: currentEvent.id,
+            roundNumber,
+            oppDeck,
+            games,
+            dieRollWon,
+          });
+        }
+      } catch (err) {
+        alert("Failed to save round.");
+        return;
       }
 
       hideRoundSheet();
@@ -1417,7 +1712,15 @@
       updateSheetRoundLabel();
       updateGameVisibility();
       updateMatchSummary();
-      renderEvents();
+
+      // Auth UI wiring
+      setAuthMode("login");
+      document.getElementById("authToggleBtn").onclick = () => {
+        setAuthMode(authMode === "login" ? "register" : "login");
+      };
+      document.getElementById("authForm").onsubmit = handleAuthSubmit;
+      document.getElementById("authCancelBtn").onclick = clearAuthFields;
+      document.getElementById("logoutBtn").onclick = handleLogout;
 
       // Events view
       document.getElementById("addEventTrigger").onclick = showEventSheet;
@@ -1430,7 +1733,7 @@
         renderEvents();
       };
 
-      // Event notes (inline card)
+      // Event notes
       document.getElementById("showEventNotesBtn").onclick = toggleEventNotes;
       document.getElementById("cancelEventCommentsBtn").onclick = cancelEventComments;
       document.getElementById("eventNotesForm").onsubmit = handleEventNotesSubmit;
@@ -1449,6 +1752,9 @@
       // Round details overlay
       document.getElementById("closeRoundDetailBtn").onclick = hideRoundDetails;
       document.getElementById("saveRoundCommentsBtn").onclick = saveRoundComments;
+
+      // Check if already logged in
+      checkCurrentUser();
     });
   </script>
 </body>
