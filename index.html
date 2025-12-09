@@ -615,18 +615,6 @@
             No event notes yet. Tap 📝 to add.
           </div>
         </div>
-
-        <!-- Edit mode -->
-        <form id="eventNotesForm" style="display:none;">
-          <div class="field">
-            <div class="field-label">Comments</div>
-            <textarea id="eventCommentsInput" placeholder="Overall notes about the event, meta, misplays, etc."></textarea>
-          </div>
-          <div class="sheet-footer">
-            <button type="button" class="btn btn-secondary" id="cancelEventCommentsBtn">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="saveEventCommentsBtn">Save notes</button>
-          </div>
-        </form>
       </section>
 
       <section class="rounds-card">
@@ -783,6 +771,23 @@
     </section>
   </div>
 
+  <!-- Event Notes Overlay -->
+  <div class="overlay" id="eventNotesOverlay">
+    <section class="sheet modal-sheet" id="eventNotesSheet">
+      <div class="sheet-title">Edit Event Notes</div>
+      <form id="eventNotesForm">
+        <div class="field">
+          <div class="field-label">Comments</div>
+          <textarea id="eventCommentsInput" placeholder="Overall notes about the event, meta, misplays, etc."></textarea>
+        </div>
+        <div class="sheet-footer">
+          <button type="button" class="btn btn-secondary" id="cancelEventCommentsBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveEventCommentsBtn">Save notes</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
   <script>
     let currentEvent = null;
     let currentRounds = [];
@@ -915,15 +920,15 @@
 
       if (g1) {
         const p1 = getGamePlay(1);
-        games.push({ number: 1, result: g1, onPlay: p1 === "1st" });
+        games.push({ number: 1, result: g1, onPlay: p1 === "1st" ? true : p1 === "2nd" ? false : null });
       }
       if (g2) {
         const p2 = getGamePlay(2);
-        games.push({ number: 2, result: g2, onPlay: p2 === "1st" });
+        games.push({ number: 2, result: g2, onPlay: p2 === "1st" ? true : p2 === "2nd" ? false : null });
       }
       if (g3) {
         const p3 = getGamePlay(3);
-        games.push({ number: 3, result: g3, onPlay: p3 === "1st" });
+        games.push({ number: 3, result: g3, onPlay: p3 === "1st" ? true : p3 === "2nd" ? false : null });
       }
       return games;
     }
@@ -1041,31 +1046,18 @@
       }
     }
 
-    function toggleEventNotes() {
+    function showEventNotesOverlay() {
       if (!currentEvent) return;
-      const form = document.getElementById("eventNotesForm");
-      const view = document.getElementById("eventNotesView");
       const textarea = document.getElementById("eventCommentsInput");
-
-      const isHidden = form.style.display === "none" || form.style.display === "";
-      if (isHidden) {
-        textarea.value = currentEvent.comments || "";
-        form.style.display = "block";
-        view.style.display = "none";
-        textarea.focus();
-      } else {
-        form.style.display = "none";
-        view.style.display = "block";
-      }
+      textarea.value = currentEvent.comments || "";
+      document.getElementById("eventNotesOverlay").classList.add("visible");
+      document.getElementById("eventNotesSheet").classList.add("visible");
+      textarea.focus();
     }
 
-    function cancelEventComments() {
-      if (!currentEvent) return;
-      const form = document.getElementById("eventNotesForm");
-      const view = document.getElementById("eventNotesView");
-      form.style.display = "none";
-      view.style.display = "block";
-      updateEventNotesViewFromCurrent();
+    function hideEventNotesOverlay() {
+      document.getElementById("eventNotesSheet").classList.remove("visible");
+      document.getElementById("eventNotesOverlay").classList.remove("visible");
     }
 
     async function handleEventNotesSubmit(e) {
@@ -1076,7 +1068,7 @@
       await apiUpdateEvent(currentEvent.id, { comments: text });
       currentEvent.comments = text;
       updateEventNotesViewFromCurrent();
-      cancelEventComments();
+      hideEventNotesOverlay();
       alert("Event notes saved.");
     }
 
@@ -1211,12 +1203,12 @@
       document.getElementById("eventOverlay").classList.remove("visible");
       document.getElementById("roundOverlay").classList.remove("visible");
       document.getElementById("roundDetailOverlay").classList.remove("visible");
+      document.getElementById("eventNotesOverlay").classList.remove("visible");
       document.getElementById("eventEditSheet").classList.remove("visible");
       document.getElementById("roundSheet").classList.remove("visible");
       document.getElementById("roundDetailSheet").classList.remove("visible");
+      document.getElementById("eventNotesSheet").classList.remove("visible");
 
-      document.getElementById("eventNotesForm").style.display = "none";
-      document.getElementById("eventNotesView").style.display = "block";
       currentEvent = null;
       currentDetailRound = null;
       editingRoundId = null;
@@ -1350,8 +1342,6 @@
       currentEvent.linkUrl = ev.linkUrl;
       updateDetailEventDeckDisplay();
 
-      document.getElementById("eventNotesForm").style.display = "none";
-      document.getElementById("eventNotesView").style.display = "block";
       updateEventNotesViewFromCurrent();
       showEventDetailView();
       await renderRoundsForCurrentEvent();
@@ -1600,7 +1590,7 @@
       gamesDiv.innerHTML = "";
       (round.games || []).forEach(g => {
         const line = document.createElement("div");
-        const play = g.onPlay ? "1st" : "2nd";
+        const play = g.onPlay === true ? "1st" : g.onPlay === false ? "2nd" : "Not specified";
         line.textContent = `Game ${g.number}: ${g.result} (${play})`;
         gamesDiv.appendChild(line);
       });
@@ -1734,8 +1724,8 @@
       };
 
       // Event notes
-      document.getElementById("showEventNotesBtn").onclick = toggleEventNotes;
-      document.getElementById("cancelEventCommentsBtn").onclick = cancelEventComments;
+      document.getElementById("showEventNotesBtn").onclick = showEventNotesOverlay;
+      document.getElementById("cancelEventCommentsBtn").onclick = hideEventNotesOverlay;
       document.getElementById("eventNotesForm").onsubmit = handleEventNotesSubmit;
 
       // Event edit overlay
