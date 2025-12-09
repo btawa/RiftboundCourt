@@ -699,7 +699,10 @@
           <span style="text-align:right;">Result</span>
         </div>
         <div id="roundsBody"></div>
-        <div class="add-row" id="addRoundTrigger">＋ Add round</div>
+        <div style="display: flex; gap: 0;">
+          <div class="add-row" id="addRoundTrigger" style="flex: 1; border-radius: 0 0 0 var(--radius-lg); border-right: 1px solid #e5e7eb;">＋ Add round</div>
+          <div class="add-row" id="exportRoundsBtn" style="flex: 1; border-radius: 0 0 var(--radius-lg) 0;">📋 Export to text</div>
+        </div>
       </section>
     </div>
   </div>
@@ -1904,6 +1907,49 @@
       document.getElementById("detailRecordDisplay").textContent = computeRecord(rounds);
     }
 
+    async function exportRoundsToText() {
+      if (!currentEvent || !currentRounds) return;
+
+      let text = "";
+
+      const deckName = currentEvent.yourDeck || "Unknown Deck";
+      const record = computeRecord(currentRounds);
+      text += `${deckName} - ${record}\n\n`;
+
+      if (currentRounds.length === 0) {
+        text += `No rounds recorded yet.\n`;
+      } else {
+        currentRounds.forEach(round => {
+          text += `R${round.roundNumber} - `;
+
+          // Add game results as emoji sequence
+          if (round.games && round.games.length > 0) {
+            round.games.forEach(game => {
+              const emoji = game.result === "W" ? "✅" : game.result === "L" ? "❌" : "⚖️";
+              text += emoji;
+            });
+          }
+
+          text += ` ${round.oppDeck || "Unknown"}`;
+
+          // Add die roll emoji if won
+          if (round.dieRollWon) {
+            text += ` 🎲`;
+          }
+
+          text += `\n`;
+        });
+      }
+
+      try {
+        await navigator.clipboard.writeText(text);
+        alert("✅ Exported and copied to clipboard!");
+      } catch (err) {
+        console.error("Failed to copy to clipboard:", err);
+        alert("❌ Failed to copy to clipboard. Text:\n\n" + text);
+      }
+    }
+
     /* ---- Event edit overlay ---- */
 
     function showEventEditSheet() {
@@ -2211,6 +2257,7 @@
 
       // Rounds view
       document.getElementById("addRoundTrigger").onclick = openRoundForCreate;
+      document.getElementById("exportRoundsBtn").onclick = exportRoundsToText;
       document.getElementById("cancelRoundBtn").onclick = hideRoundSheet;
       document.getElementById("roundForm").onsubmit = handleRoundSubmit;
       document.getElementById("roundNumber").oninput = updateSheetRoundLabel;
