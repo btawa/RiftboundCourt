@@ -1178,7 +1178,6 @@
       currentEvent.comments = text;
       updateEventNotesViewFromCurrent();
       hideEventNotesOverlay();
-      alert("Event notes saved.");
     }
 
     /* ---- Auth view ---- */
@@ -1943,7 +1942,6 @@
 
       try {
         await navigator.clipboard.writeText(text);
-        alert("✅ Exported and copied to clipboard!");
       } catch (err) {
         console.error("Failed to copy to clipboard:", err);
         alert("❌ Failed to copy to clipboard. Text:\n\n" + text);
