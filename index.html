@@ -606,6 +606,103 @@
       border-radius: 4px;
       border: 1px solid #ddd;
     }
+
+    /* Mobile stats view */
+    .stats-mobile-view {
+      display: none;
+    }
+
+    .stats-deck-selector {
+      margin: 12px 0;
+    }
+
+    .stats-deck-selector select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      background: var(--card);
+    }
+
+    .stats-matchup-card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-left: 4px solid;
+    }
+
+    .stats-matchup-header {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+    }
+
+    .stats-matchup-details {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .stats-matchup-winrate {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .stats-view-toggle {
+      text-align: center;
+      margin-top: 12px;
+      font-size: 0.8rem;
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    /* Responsive layout */
+    @media (max-width: 640px) {
+      .stats-grid-container {
+        display: none;
+      }
+
+      .stats-mobile-view {
+        display: block;
+      }
+
+      .stats-legend {
+        flex-wrap: wrap;
+      }
+
+      .stats-info::before {
+        content: "Select a deck to view matchups. Sorted by win rate (best to worst).";
+      }
+
+      .stats-info {
+        font-size: 0;
+      }
+
+      /* Stack date filter vertically on mobile */
+      #statsSheet .stats-date-filter {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      #statsSheet .stats-date-filter > div {
+        width: 100%;
+      }
+
+      #statsSheet .stats-date-filter input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      #statsSheet .stats-date-filter button {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1023,7 +1120,7 @@
         <button type="button" id="statsTabGames" class="stats-tab" style="flex: 0 0 auto; padding: 8px 16px; border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent;">Game Win %</button>
       </div>
 
-      <div style="display: flex; gap: 12px; align-items: center; justify-content: center; margin: 12px 0; padding: 12px; background: var(--accent-soft); border-radius: 8px;">
+      <div class="stats-date-filter" style="display: flex; gap: 12px; align-items: center; justify-content: center; margin: 12px 0; padding: 12px; background: var(--accent-soft); border-radius: 8px;">
         <div style="display: flex; align-items: center; gap: 6px;">
           <label for="statsStartDate" style="font-size: 0.85rem; font-weight: 500;">From:</label>
           <input type="date" id="statsStartDate" style="padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem;" />
@@ -1057,7 +1154,19 @@
         </div>
       </div>
 
-      <div class="stats-info">
+      <div class="stats-mobile-view">
+        <div class="stats-deck-selector">
+          <label for="statsMobileDeckSelect" style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Select your deck:</label>
+          <select id="statsMobileDeckSelect">
+            <option value="">-- Select a deck --</option>
+          </select>
+        </div>
+        <div id="statsMobileContent">
+          <!-- Mobile cards will be inserted here -->
+        </div>
+      </div>
+
+      <div class="stats-info" id="statsInfoText">
         Hover over colored cells to see detailed record (wins-losses-draws). Rows = your deck, Columns = opponent's deck.
       </div>
 
@@ -1078,6 +1187,7 @@
     let currentUser = null;
     let authMode = "login"; // "login" | "register"
     let statsMode = "matches"; // "matches" | "games"
+    let currentStatsData = null; // Store current stats for mobile view
 
     /* ---- Toast notification ---- */
 
@@ -2003,10 +2113,87 @@
 
         container.innerHTML = "";
         container.appendChild(grid);
+
+        // Also render mobile view
+        renderMobileStatsView(stats, yourDecks);
       } catch (err) {
         console.error(err);
         container.innerHTML = "<div style='padding: 20px; text-align: center; color: #b91c1c;'>Error loading stats. Check console.</div>";
       }
+    }
+
+    function renderMobileStatsView(stats, yourDecks) {
+      // Store stats for later use by dropdown
+      currentStatsData = stats;
+
+      const selector = document.getElementById("statsMobileDeckSelect");
+      const mobileContent = document.getElementById("statsMobileContent");
+
+      // Populate deck selector
+      selector.innerHTML = '<option value="">-- Select a deck --</option>';
+      yourDecks.forEach(deck => {
+        const option = document.createElement("option");
+        option.value = deck;
+        option.textContent = deck;
+        selector.appendChild(option);
+      });
+
+      // Initial render
+      renderMobileCards(stats, "");
+    }
+
+    function renderMobileCards(stats, selectedDeck) {
+      const mobileContent = document.getElementById("statsMobileContent");
+
+      if (!selectedDeck) {
+        mobileContent.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--muted);">Select a deck to view matchups</div>';
+        return;
+      }
+
+      // Filter stats for selected deck
+      const deckStats = stats.filter(s => s.yourDeck === selectedDeck);
+
+      if (deckStats.length === 0) {
+        mobileContent.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--muted);">No matchup data for this deck</div>';
+        return;
+      }
+
+      // Sort by win rate descending
+      deckStats.sort((a, b) => b.winRate - a.winRate);
+
+      mobileContent.innerHTML = "";
+      deckStats.forEach(matchup => {
+        const card = document.createElement("div");
+        card.className = "stats-matchup-card";
+
+        const winRate = matchup.winRate;
+        const winRatePercent = Math.round(winRate * 100);
+        const borderColor = getWinRateColor(winRate);
+        card.style.borderLeftColor = borderColor;
+
+        const header = document.createElement("div");
+        header.className = "stats-matchup-header";
+        header.textContent = `vs ${matchup.oppDeck}`;
+
+        const details = document.createElement("div");
+        details.className = "stats-matchup-details";
+
+        const record = document.createElement("span");
+        record.textContent = `${matchup.wins}-${matchup.losses}${matchup.draws > 0 ? '-' + matchup.draws : ''}`;
+
+        const winrateSpan = document.createElement("span");
+        winrateSpan.className = "stats-matchup-winrate";
+        winrateSpan.style.color = borderColor;
+        winrateSpan.textContent = `${winRatePercent}% (${matchup.total})`;
+
+        details.appendChild(record);
+        details.appendChild(winrateSpan);
+
+        card.appendChild(header);
+        card.appendChild(details);
+
+        mobileContent.appendChild(card);
+      });
     }
 
     /* ---- Events view ---- */
@@ -2588,6 +2775,9 @@
         document.getElementById("statsStartDate").value = "";
         document.getElementById("statsEndDate").value = "";
         loadStatsGrid();
+      };
+      document.getElementById("statsMobileDeckSelect").onchange = (e) => {
+        renderMobileCards(currentStatsData, e.target.value);
       };
       document.getElementById("adminBtn").onclick = showAdminPanel;
       document.getElementById("closeAdminBtn").onclick = hideAdminPanel;
