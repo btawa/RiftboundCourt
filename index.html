@@ -522,6 +522,90 @@
       max-height: 90vh;
       overflow-y: auto;
     }
+
+    /* Stats grid */
+    .stats-grid-container {
+      overflow-x: auto;
+      margin-top: 12px;
+      border-radius: var(--radius-lg);
+      background: var(--card);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .stats-grid {
+      display: grid;
+      min-width: 100%;
+      border-collapse: collapse;
+    }
+
+    .stats-cell {
+      padding: 12px;
+      border: 1px solid #e5e7eb;
+      text-align: center;
+      font-size: 0.85rem;
+      min-width: 80px;
+    }
+
+    .stats-header {
+      background: var(--accent-soft);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .stats-row-header {
+      background: var(--accent-soft);
+      font-weight: 600;
+      position: sticky;
+      left: 0;
+      z-index: 5;
+    }
+
+    .stats-data-cell {
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .stats-data-cell:hover {
+      box-shadow: 0 0 0 2px var(--accent);
+      z-index: 15;
+    }
+
+    .stats-empty {
+      background: #f9fafb;
+      color: var(--muted);
+    }
+
+    .stats-info {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .stats-legend {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin: 12px 0;
+      font-size: 0.8rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-box {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
   </style>
 </head>
 <body>
@@ -644,6 +728,7 @@
           </div>
           <div class="user-pill">
             <span id="userPillName"></span>
+            <button type="button" id="statsBtn">Stats</button>
             <button type="button" id="adminBtn">Admin</button>
             <button type="button" id="logoutBtn">Logout</button>
           </div>
@@ -670,6 +755,10 @@
           <div class="field">
             <div class="field-label">Your deck</div>
             <input type="text" id="eventDeck" placeholder="e.g. Miss Fortune" />
+          </div>
+          <div class="field">
+            <div class="field-label">Event date (optional)</div>
+            <input type="date" id="eventDate" />
           </div>
           <div class="field">
             <div class="field-label">Link (optional)</div>
@@ -742,6 +831,10 @@
         <div class="field">
           <div class="field-label">Your deck</div>
           <input type="text" id="eventEditDeck" />
+        </div>
+        <div class="field">
+          <div class="field-label">Event date (optional)</div>
+          <input type="date" id="eventEditDate" />
         </div>
         <div class="field">
           <div class="field-label">Link (optional)</div>
@@ -920,6 +1013,60 @@
     </section>
   </div>
 
+  <!-- Stats Overlay -->
+  <div class="overlay" id="statsOverlay">
+    <section class="sheet modal-sheet" id="statsSheet" style="max-width: 800px;">
+      <div class="sheet-title">Matchup Win Rates</div>
+
+      <div style="display: flex; gap: 8px; margin: 12px 0; border-bottom: 1px solid #e5e7eb; justify-content: center;">
+        <button type="button" id="statsTabMatches" class="stats-tab" style="flex: 0 0 auto; padding: 8px 16px; border: none; background: transparent; cursor: pointer; border-bottom: 2px solid var(--accent); font-weight: 600;">Match Win %</button>
+        <button type="button" id="statsTabGames" class="stats-tab" style="flex: 0 0 auto; padding: 8px 16px; border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent;">Game Win %</button>
+      </div>
+
+      <div style="display: flex; gap: 12px; align-items: center; justify-content: center; margin: 12px 0; padding: 12px; background: var(--accent-soft); border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <label for="statsStartDate" style="font-size: 0.85rem; font-weight: 500;">From:</label>
+          <input type="date" id="statsStartDate" style="padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem;" />
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <label for="statsEndDate" style="font-size: 0.85rem; font-weight: 500;">To:</label>
+          <input type="date" id="statsEndDate" style="padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem;" />
+        </div>
+        <button type="button" id="statsApplyDateRange" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.85rem;">Apply</button>
+        <button type="button" id="statsClearDateRange" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">Clear</button>
+      </div>
+
+      <div class="stats-legend">
+        <div class="legend-item">
+          <div class="legend-box" style="background: #991b1b;"></div>
+          <span>0% WR</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-box" style="background: #fef08a;"></div>
+          <span>50% WR</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-box" style="background: #166534;"></div>
+          <span>100% WR</span>
+        </div>
+      </div>
+
+      <div class="stats-grid-container">
+        <div id="statsGridContent">
+          <!-- Grid will be inserted here -->
+        </div>
+      </div>
+
+      <div class="stats-info">
+        Hover over colored cells to see detailed record (wins-losses-draws). Rows = your deck, Columns = opponent's deck.
+      </div>
+
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" id="closeStatsBtn">Close</button>
+      </div>
+    </section>
+  </div>
+
   <!-- Toast notification -->
   <div class="toast" id="toast"></div>
 
@@ -930,6 +1077,7 @@
     let editingRoundId = null;
     let currentUser = null;
     let authMode = "login"; // "login" | "register"
+    let statsMode = "matches"; // "matches" | "games"
 
     /* ---- Toast notification ---- */
 
@@ -1692,6 +1840,175 @@
       }
     }
 
+    /* ---- Stats ---- */
+
+    function showStatsOverlay() {
+      document.getElementById("statsOverlay").classList.add("visible");
+      document.getElementById("statsSheet").classList.add("visible");
+      statsMode = "matches"; // Reset to matches when opening
+      switchStatsTab("matches");
+      loadStatsGrid();
+    }
+
+    function hideStatsOverlay() {
+      document.getElementById("statsSheet").classList.remove("visible");
+      document.getElementById("statsOverlay").classList.remove("visible");
+    }
+
+    function switchStatsTab(mode) {
+      statsMode = mode;
+
+      // Update tab buttons
+      document.querySelectorAll(".stats-tab").forEach(btn => {
+        btn.style.borderBottom = "2px solid transparent";
+        btn.style.fontWeight = "normal";
+      });
+
+      if (mode === "matches") {
+        document.getElementById("statsTabMatches").style.borderBottom = "2px solid var(--accent)";
+        document.getElementById("statsTabMatches").style.fontWeight = "600";
+      } else if (mode === "games") {
+        document.getElementById("statsTabGames").style.borderBottom = "2px solid var(--accent)";
+        document.getElementById("statsTabGames").style.fontWeight = "600";
+      }
+
+      loadStatsGrid();
+    }
+
+    function getWinRateColor(winRate) {
+      // Convert win rate (0-1) to a color gradient from dark red to dark green
+      // 0% = dark red (#991b1b)
+      // 50% = yellow (#fef08a)
+      // 100% = dark green (#166534)
+
+      let r, g, b;
+
+      if (winRate < 0.5) {
+        // Interpolate from dark red to yellow
+        const t = winRate * 2; // 0 to 1
+        r = Math.round(153 + (254 - 153) * t); // 153 (#991b1b) to 254 (#fef08a)
+        g = Math.round(27 + (240 - 27) * t);   // 27 to 240
+        b = Math.round(27 + (138 - 27) * t);   // 27 to 138
+      } else {
+        // Interpolate from yellow to dark green
+        const t = (winRate - 0.5) * 2; // 0 to 1
+        r = Math.round(254 + (22 - 254) * t);  // 254 to 22 (#166534)
+        g = Math.round(240 + (101 - 240) * t); // 240 to 101
+        b = Math.round(138 + (52 - 138) * t);  // 138 to 52
+      }
+
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    async function loadStatsGrid() {
+      const container = document.getElementById("statsGridContent");
+      container.innerHTML = "<div style='padding: 20px; text-align: center; color: var(--muted);'>Loading stats...</div>";
+
+      try {
+        // Build query string with date range if set
+        const startDate = document.getElementById("statsStartDate").value;
+        const endDate = document.getElementById("statsEndDate").value;
+
+        let url = "/api/stats";
+        const params = new URLSearchParams();
+        if (startDate) params.append("startDate", startDate);
+        if (endDate) params.append("endDate", endDate);
+        if (params.toString()) url += "?" + params.toString();
+
+        const data = await apiGet(url);
+        const { matchStats, gameStats, allDecks } = data;
+
+        // Choose which stats to display based on current mode
+        const stats = statsMode === "matches" ? matchStats : gameStats;
+
+        if (!stats || stats.length === 0) {
+          const modeLabel = statsMode === "matches" ? "match" : "game";
+          container.innerHTML = `<div style='padding: 20px; text-align: center; color: var(--muted);'>No ${modeLabel} data yet. Play some rounds to see stats!</div>`;
+          return;
+        }
+
+        // Build a map for quick lookup: yourDeck -> oppDeck -> stats
+        const statsMap = {};
+        stats.forEach(s => {
+          if (!statsMap[s.yourDeck]) {
+            statsMap[s.yourDeck] = {};
+          }
+          statsMap[s.yourDeck][s.oppDeck] = s;
+        });
+
+        // Get unique decks for rows (your decks) and columns (opp decks)
+        const yourDecks = [...new Set(stats.map(s => s.yourDeck))].sort();
+        const oppDecks = [...new Set(stats.map(s => s.oppDeck))].sort();
+
+        // Create grid
+        const numCols = oppDecks.length + 1; // +1 for row header
+        const grid = document.createElement("div");
+        grid.className = "stats-grid";
+        grid.style.gridTemplateColumns = `150px repeat(${oppDecks.length}, 100px)`;
+
+        // Header row
+        const cornerCell = document.createElement("div");
+        cornerCell.className = "stats-cell stats-header";
+        cornerCell.textContent = "Your Deck ↓ / Opp →";
+        cornerCell.style.fontSize = "0.7rem";
+        grid.appendChild(cornerCell);
+
+        oppDecks.forEach(oppDeck => {
+          const headerCell = document.createElement("div");
+          headerCell.className = "stats-cell stats-header";
+          headerCell.textContent = oppDeck;
+          headerCell.style.fontSize = "0.8rem";
+          headerCell.style.wordWrap = "break-word";
+          grid.appendChild(headerCell);
+        });
+
+        // Data rows
+        yourDecks.forEach(yourDeck => {
+          // Row header
+          const rowHeader = document.createElement("div");
+          rowHeader.className = "stats-cell stats-row-header";
+          rowHeader.textContent = yourDeck;
+          rowHeader.style.fontSize = "0.85rem";
+          rowHeader.style.textAlign = "left";
+          grid.appendChild(rowHeader);
+
+          // Data cells
+          oppDecks.forEach(oppDeck => {
+            const cell = document.createElement("div");
+            cell.className = "stats-cell";
+
+            const matchup = statsMap[yourDeck]?.[oppDeck];
+
+            if (matchup) {
+              cell.classList.add("stats-data-cell");
+              const winRate = matchup.winRate;
+              const winRatePercent = Math.round(winRate * 100);
+
+              // Apply color gradient
+              cell.style.backgroundColor = getWinRateColor(winRate);
+              cell.style.color = winRate > 0.3 && winRate < 0.7 ? "#000" : "#fff";
+              cell.style.fontWeight = "600";
+
+              cell.textContent = `${winRatePercent}% (${matchup.total})`;
+              const modeLabel = statsMode === "matches" ? "matches" : "games";
+              cell.title = `${yourDeck} vs ${oppDeck}\nWin Rate: ${winRatePercent}%\nRecord: ${matchup.wins}-${matchup.losses}${matchup.draws > 0 ? '-' + matchup.draws : ''}\nTotal: ${matchup.total} ${modeLabel}`;
+            } else {
+              cell.classList.add("stats-empty");
+              cell.textContent = "—";
+            }
+
+            grid.appendChild(cell);
+          });
+        });
+
+        container.innerHTML = "";
+        container.appendChild(grid);
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = "<div style='padding: 20px; text-align: center; color: #b91c1c;'>Error loading stats. Check console.</div>";
+      }
+    }
+
     /* ---- Events view ---- */
 
     function showEventsView() {
@@ -1802,10 +2119,12 @@
       e.preventDefault();
       const nameInput = document.getElementById("eventName");
       const deckInput = document.getElementById("eventDeck");
+      const dateInput = document.getElementById("eventDate");
       const urlInput  = document.getElementById("eventUrl");
 
       const name = nameInput.value.trim();
       const deck = deckInput.value.trim();
+      const date = dateInput.value.trim();
       const url  = urlInput.value.trim();
 
       if (!name || !deck) {
@@ -1817,11 +2136,13 @@
         const ev = await apiCreateEvent({
           name,
           yourDeck: deck,
+          eventDate: date || null,
           linkUrl: url || null,
         });
 
         nameInput.value = "";
         deckInput.value = "";
+        dateInput.value = "";
         urlInput.value = "";
         hideEventSheet();
         await renderEvents();
@@ -1994,6 +2315,7 @@
       if (!currentEvent) return;
       document.getElementById("eventEditName").value = currentEvent.name || "";
       document.getElementById("eventEditDeck").value = currentEvent.yourDeck || "";
+      document.getElementById("eventEditDate").value = currentEvent.eventDate || "";
       document.getElementById("eventEditUrl").value = currentEvent.linkUrl || "";
       document.getElementById("eventOverlay").classList.add("visible");
       document.getElementById("eventEditSheet").classList.add("visible");
@@ -2010,6 +2332,7 @@
 
       const name = document.getElementById("eventEditName").value.trim();
       const deck = document.getElementById("eventEditDeck").value.trim();
+      const date = document.getElementById("eventEditDate").value.trim();
       const url  = document.getElementById("eventEditUrl").value.trim();
 
       if (!name || !deck) {
@@ -2021,6 +2344,7 @@
         await apiUpdateEvent(currentEvent.id, {
           name,
           yourDeck: deck,
+          eventDate: date || null,
           linkUrl: url || null,
         });
       } catch (err) {
@@ -2030,6 +2354,7 @@
 
       currentEvent.name = name;
       currentEvent.yourDeck = deck;
+      currentEvent.eventDate = date || null;
       currentEvent.linkUrl = url || null;
 
       document.getElementById("detailEventName").textContent = name;
@@ -2254,6 +2579,16 @@
       document.getElementById("authForm").onsubmit = handleAuthSubmit;
       document.getElementById("authCancelBtn").onclick = clearAuthFields;
       document.getElementById("logoutBtn").onclick = handleLogout;
+      document.getElementById("statsBtn").onclick = showStatsOverlay;
+      document.getElementById("closeStatsBtn").onclick = hideStatsOverlay;
+      document.getElementById("statsTabMatches").onclick = () => switchStatsTab("matches");
+      document.getElementById("statsTabGames").onclick = () => switchStatsTab("games");
+      document.getElementById("statsApplyDateRange").onclick = loadStatsGrid;
+      document.getElementById("statsClearDateRange").onclick = () => {
+        document.getElementById("statsStartDate").value = "";
+        document.getElementById("statsEndDate").value = "";
+        loadStatsGrid();
+      };
       document.getElementById("adminBtn").onclick = showAdminPanel;
       document.getElementById("closeAdminBtn").onclick = hideAdminPanel;
       document.getElementById("adminTabResets").onclick = () => switchAdminTab("resets");

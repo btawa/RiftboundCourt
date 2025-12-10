@@ -62,6 +62,7 @@ def init_db():
             your_deck TEXT,
             link_url TEXT,
             comments TEXT,
+            event_date TEXT,
             user_id INTEGER NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
@@ -594,6 +595,7 @@ def list_events():
                 "yourDeck": row["your_deck"],
                 "linkUrl": row["link_url"],
                 "comments": row["comments"] or "",
+                "eventDate": row["event_date"] or "",
                 "record": record,
             }
         )
@@ -608,6 +610,7 @@ def create_event():
     name = (data.get("name") or "").strip()
     your_deck = (data.get("yourDeck") or "").strip()
     link_url = (data.get("linkUrl") or "").strip() or None
+    event_date = (data.get("eventDate") or "").strip() or None
 
     if not name or not your_deck:
         return jsonify({"error": "Name and yourDeck are required"}), 400
@@ -616,10 +619,10 @@ def create_event():
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO events (name, your_deck, link_url, comments, user_id)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO events (name, your_deck, link_url, comments, event_date, user_id)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (name, your_deck, link_url, None, user_id),
+        (name, your_deck, link_url, None, event_date, user_id),
     )
     event_id = cur.lastrowid
     conn.commit()
@@ -631,6 +634,7 @@ def create_event():
         "yourDeck": your_deck,
         "linkUrl": link_url,
         "comments": "",
+        "eventDate": event_date or "",
         "record": "0-0",
     }
     return jsonify(event_obj)
@@ -657,14 +661,15 @@ def update_event(event_id):
     new_deck = data.get("yourDeck", row["your_deck"])
     new_link = data.get("linkUrl", row["link_url"])
     new_comments = data.get("comments", row["comments"])
+    new_date = data.get("eventDate", row["event_date"])
 
     cur.execute(
         """
         UPDATE events
-        SET name = ?, your_deck = ?, link_url = ?, comments = ?
+        SET name = ?, your_deck = ?, link_url = ?, comments = ?, event_date = ?
         WHERE id = ?
         """,
-        (new_name, new_deck, new_link, new_comments, event_id),
+        (new_name, new_deck, new_link, new_comments, new_date, event_id),
     )
     conn.commit()
     conn.close()
@@ -875,6 +880,141 @@ def delete_round(round_id):
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
+
+
+# -------------------------------------------------------------------
+# Stats routes
+# -------------------------------------------------------------------
+@app.get("/api/stats")
+@login_required
+def get_stats():
+    user_id = session["user_id"]
+    start_date = request.args.get("startDate")
+    end_date = request.args.get("endDate")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Build query with optional date filtering
+    query = """
+        SELECT e.id, e.your_deck, r.opp_deck, r.match_result, r.games_json
+        FROM events e
+        JOIN rounds r ON e.id = r.event_id
+        WHERE e.user_id = ?
+    """
+    params = [user_id]
+
+    if start_date:
+        query += " AND e.event_date >= ?"
+        params.append(start_date)
+
+    if end_date:
+        query += " AND e.event_date <= ?"
+        params.append(end_date)
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+    conn.close()
+
+    # Build matchup statistics for both matches and games
+    match_stats = {}
+    game_stats = {}
+    all_decks = set()
+
+    for row in rows:
+        your_deck = row["your_deck"]
+        opp_deck = row["opp_deck"]
+        match_result = row["match_result"]
+        games_json = row["games_json"]
+
+        all_decks.add(your_deck)
+        all_decks.add(opp_deck)
+
+        # Match statistics
+        if your_deck not in match_stats:
+            match_stats[your_deck] = {}
+        if opp_deck not in match_stats[your_deck]:
+            match_stats[your_deck][opp_deck] = {"wins": 0, "losses": 0, "draws": 0}
+
+        if match_result == "Win":
+            match_stats[your_deck][opp_deck]["wins"] += 1
+        elif match_result == "Loss":
+            match_stats[your_deck][opp_deck]["losses"] += 1
+        elif match_result == "Draw":
+            match_stats[your_deck][opp_deck]["draws"] += 1
+
+        # Game statistics
+        if games_json:
+            games = json.loads(games_json)
+            if your_deck not in game_stats:
+                game_stats[your_deck] = {}
+            if opp_deck not in game_stats[your_deck]:
+                game_stats[your_deck][opp_deck] = {"wins": 0, "losses": 0, "draws": 0}
+
+            for game in games:
+                game_result = game.get("result")
+                if game_result == "W":
+                    game_stats[your_deck][opp_deck]["wins"] += 1
+                elif game_result == "L":
+                    game_stats[your_deck][opp_deck]["losses"] += 1
+                elif game_result == "T":
+                    game_stats[your_deck][opp_deck]["draws"] += 1
+
+    # Calculate win rates for matches
+    match_winrates = []
+    for your_deck in match_stats:
+        for opp_deck in match_stats[your_deck]:
+            data = match_stats[your_deck][opp_deck]
+            wins = data["wins"]
+            losses = data["losses"]
+            draws = data["draws"]
+            total = wins + losses + draws
+
+            if wins + losses > 0:
+                win_rate = wins / (wins + losses)
+            else:
+                win_rate = 0.5
+
+            match_winrates.append({
+                "yourDeck": your_deck,
+                "oppDeck": opp_deck,
+                "wins": wins,
+                "losses": losses,
+                "draws": draws,
+                "total": total,
+                "winRate": win_rate
+            })
+
+    # Calculate win rates for games
+    game_winrates = []
+    for your_deck in game_stats:
+        for opp_deck in game_stats[your_deck]:
+            data = game_stats[your_deck][opp_deck]
+            wins = data["wins"]
+            losses = data["losses"]
+            draws = data["draws"]
+            total = wins + losses + draws
+
+            if wins + losses > 0:
+                win_rate = wins / (wins + losses)
+            else:
+                win_rate = 0.5
+
+            game_winrates.append({
+                "yourDeck": your_deck,
+                "oppDeck": opp_deck,
+                "wins": wins,
+                "losses": losses,
+                "draws": draws,
+                "total": total,
+                "winRate": win_rate
+            })
+
+    return jsonify({
+        "matchStats": match_winrates,
+        "gameStats": game_winrates,
+        "allDecks": sorted(list(all_decks))
+    })
 
 
 # -------------------------------------------------------------------
