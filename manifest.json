@@ -1,0 +1,23 @@
+{
+  "name": "Riftbound Tournament Tracker",
+  "short_name": "Riftbound",
+  "description": "Track your tournament progress and stats",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "categories": ["sports", "games"],
+  "icons": [
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
