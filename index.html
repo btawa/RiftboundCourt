@@ -1203,6 +1203,7 @@
     let currentDetailRound = null;
     let editingRoundId = null;
     let currentUser = null;
+    let csrfToken = null;
     let authMode = "login"; // "login" | "register"
     let statsMode = "matches"; // "matches" | "games"
     let currentStatsData = null; // Store current stats for mobile view
@@ -1221,10 +1222,21 @@
 
     /* ---- API helpers ---- */
 
+    function buildHeaders(includeJson = false) {
+      const headers = {};
+      if (includeJson) {
+        headers["Content-Type"] = "application/json";
+      }
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+      return headers;
+    }
+
     async function apiGet(path, opts = {}) {
       const res = await fetch(path, {
         method: "GET",
-        headers: { "Content-Type": "application/json" },
+        headers: buildHeaders(true),
         ...opts,
       });
       return res.json();
@@ -1233,7 +1245,7 @@
     async function apiPost(path, body) {
       const res = await fetch(path, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildHeaders(true),
         body: JSON.stringify(body),
       });
       return res;
@@ -1242,14 +1254,14 @@
     async function apiPatch(path, body) {
       const res = await fetch(path, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: buildHeaders(true),
         body: JSON.stringify(body),
       });
       return res;
     }
 
     async function apiDelete(path) {
-      const res = await fetch(path, { method: "DELETE" });
+      const res = await fetch(path, { method: "DELETE", headers: buildHeaders() });
       return res;
     }
 
@@ -1529,6 +1541,7 @@
         const data = await apiGet("/api/me");
         if (data && data.user) {
           currentUser = data.user;
+          csrfToken = data.csrfToken || null;
           showAppForUser();
         } else {
           showAuthView();
@@ -1601,8 +1614,13 @@
           return;
         }
 
-        const user = await res.json();
-        currentUser = user;
+        const data = await res.json();
+        currentUser = {
+          id: data.id,
+          username: data.username,
+          isAdmin: data.isAdmin,
+        };
+        csrfToken = data.csrfToken || null;
         clearAuthFields();
         showAppForUser();
       } catch (err) {
@@ -1618,6 +1636,7 @@
         // ignore
       }
       currentUser = null;
+      csrfToken = null;
       currentEvent = null;
       currentRounds = [];
       currentDetailRound = null;
@@ -1896,6 +1915,8 @@
         }
 
         container.innerHTML = "";
+        const adminCount = users.filter(u => u.isAdmin).length;
+
         users.forEach(user => {
           const card = document.createElement("div");
           card.style.cssText = "background: var(--card); border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;";
@@ -1905,47 +1926,65 @@
           username.style.cssText = "font-weight: 600; font-size: 0.95rem; margin-bottom: 2px;";
           username.textContent = user.username;
 
-          const role = document.createElement("div");
-          role.style.cssText = "font-size: 0.75rem; color: var(--muted);";
-          role.textContent = user.isAdmin ? "Role: Admin" : "Role: User";
+        const role = document.createElement("div");
+        role.style.cssText = "font-size: 0.75rem; color: var(--muted);";
+        role.textContent = user.isAdmin ? "Role: Admin" : "Role: User";
 
-          info.appendChild(username);
-          info.appendChild(role);
+        info.appendChild(username);
+        info.appendChild(role);
 
-          const actions = document.createElement("div");
-          actions.style.cssText = "display: flex; gap: 8px;";
+        const actions = document.createElement("div");
+        actions.style.cssText = "display: flex; gap: 8px;";
 
-          if (user.isAdmin) {
-            const revokeBtn = document.createElement("button");
-            revokeBtn.className = "btn btn-secondary";
-            revokeBtn.textContent = "Revoke Admin";
-            revokeBtn.style.fontSize = "0.8rem";
-            revokeBtn.style.padding = "6px 12px";
+        if (user.isAdmin) {
+          const revokeBtn = document.createElement("button");
+          revokeBtn.className = "btn btn-secondary";
+          revokeBtn.textContent = "Revoke Admin";
+          revokeBtn.style.fontSize = "0.8rem";
+          revokeBtn.style.padding = "6px 12px";
+          const isLastAdmin = adminCount <= 1;
+          if (isLastAdmin) {
+            revokeBtn.disabled = true;
+            revokeBtn.title = "Cannot revoke the last admin.";
+            revokeBtn.style.opacity = "0.6";
+            revokeBtn.style.cursor = "not-allowed";
+          } else {
             revokeBtn.onclick = async () => {
               if (confirm(`Revoke admin access for ${user.username}?`)) {
                 await setUserAdmin(user.id, false);
               }
             };
-            actions.appendChild(revokeBtn);
-          } else {
-            const promoteBtn = document.createElement("button");
-            promoteBtn.className = "btn btn-primary";
-            promoteBtn.textContent = "Make Admin";
-            promoteBtn.style.fontSize = "0.8rem";
-            promoteBtn.style.padding = "6px 12px";
-            promoteBtn.onclick = async () => {
-              if (confirm(`Grant admin access to ${user.username}?`)) {
-                await setUserAdmin(user.id, true);
-              }
-            };
-            actions.appendChild(promoteBtn);
           }
+          actions.appendChild(revokeBtn);
+        } else {
+          const promoteBtn = document.createElement("button");
+          promoteBtn.className = "btn btn-primary";
+          promoteBtn.textContent = "Make Admin";
+          promoteBtn.style.fontSize = "0.8rem";
+          promoteBtn.style.padding = "6px 12px";
+          promoteBtn.onclick = async () => {
+            if (confirm(`Grant admin access to ${user.username}?`)) {
+              await setUserAdmin(user.id, true);
+            }
+          };
+          actions.appendChild(promoteBtn);
+        }
 
-          card.appendChild(info);
-          card.appendChild(actions);
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "btn btn-secondary";
+        deleteBtn.textContent = "Delete User";
+        deleteBtn.style.fontSize = "0.8rem";
+        deleteBtn.style.padding = "6px 12px";
+        deleteBtn.onclick = async () => {
+          await deleteUser(user.id, user.username);
+        };
+        actions.appendChild(deleteBtn);
 
-          container.appendChild(card);
-        });
+        card.appendChild(info);
+        card.appendChild(actions);
+
+        container.appendChild(card);
+      });
       } catch (err) {
         console.error(err);
         container.innerHTML = "<div style='padding: 10px; color: #b91c1c; font-size: 0.85rem;'>Error loading users. You may not have admin access.</div>";
@@ -1961,6 +2000,25 @@
           return;
         }
         alert(`User role updated successfully!`);
+        loadUsersList();
+      } catch (err) {
+        console.error(err);
+        alert("Server error. Check console/logs.");
+      }
+    }
+
+    async function deleteUser(userId, username) {
+      if (!confirm(`Delete user "${username}" and all of their data? This cannot be undone.`)) {
+        return;
+      }
+      try {
+        const res = await apiDelete(`/api/admin/users/${userId}`);
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || "Failed to delete user.");
+          return;
+        }
+        alert("User deleted.");
         loadUsersList();
       } catch (err) {
         console.error(err);

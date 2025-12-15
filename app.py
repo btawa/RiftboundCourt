@@ -139,6 +139,37 @@ def admin_required(f):
     return wrapper
 
 
+def get_or_create_csrf_token():
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(16)
+        session["csrf_token"] = token
+    return token
+
+
+@app.before_request
+def enforce_csrf():
+    # Only enforce for state-changing requests
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return
+
+    # Skip CSRF check for auth-less endpoints
+    path = request.path or ""
+    csrf_exempt_paths = {
+        "/api/login",
+        "/api/register",
+        "/api/password-reset/request",
+        "/api/password-reset/confirm",
+    }
+    if path in csrf_exempt_paths:
+        return
+
+    sent_token = request.headers.get("X-CSRF-Token")
+    session_token = session.get("csrf_token")
+    if not sent_token or not session_token or sent_token != session_token:
+        return jsonify({"error": "Invalid or missing CSRF token"}), 403
+
+
 def compute_match_result(games):
     wins = sum(1 for g in games if g.get("result") == "W")
     losses = sum(1 for g in games if g.get("result") == "L")
@@ -223,7 +254,8 @@ def register():
 
     conn.close()
     session["user_id"] = user_id
-    return jsonify({"id": user_id, "username": username, "isAdmin": bool(is_admin)})
+    csrf_token = get_or_create_csrf_token()
+    return jsonify({"id": user_id, "username": username, "isAdmin": bool(is_admin), "csrfToken": csrf_token})
 
 
 @app.post("/api/login")
@@ -245,7 +277,8 @@ def login():
         return jsonify({"error": "Invalid username or password"}), 401
 
     session["user_id"] = row["id"]
-    return jsonify({"id": row["id"], "username": row["username"], "isAdmin": bool(row["is_admin"])})
+    csrf_token = get_or_create_csrf_token()
+    return jsonify({"id": row["id"], "username": row["username"], "isAdmin": bool(row["is_admin"]), "csrfToken": csrf_token})
 
 
 @app.get("/api/me")
@@ -263,7 +296,8 @@ def me():
     if row is None:
         return jsonify({"user": None})
 
-    return jsonify({"user": {"id": row["id"], "username": row["username"], "isAdmin": bool(row["is_admin"])}})
+    csrf_token = get_or_create_csrf_token()
+    return jsonify({"user": {"id": row["id"], "username": row["username"], "isAdmin": bool(row["is_admin"])}, "csrfToken": csrf_token})
 
 
 @app.post("/api/logout")
@@ -546,12 +580,20 @@ def set_user_admin(user_id):
     cur = conn.cursor()
 
     # Check if user exists
-    cur.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+    cur.execute("SELECT id, is_admin FROM users WHERE id = ?", (user_id,))
     row = cur.fetchone()
 
     if row is None:
         conn.close()
         return jsonify({"error": "User not found"}), 404
+
+    # Prevent revoking admin from the last admin account
+    if not is_admin and row["is_admin"]:
+        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE is_admin = 1")
+        admin_count = cur.fetchone()["cnt"]
+        if admin_count <= 1:
+            conn.close()
+            return jsonify({"error": "Cannot revoke admin from the last admin user."}), 400
 
     # Update admin status
     try:
@@ -563,6 +605,48 @@ def set_user_admin(user_id):
     except Exception as e:
         conn.close()
         print("Error updating user role:", e)
+        return jsonify({"error": "Server error"}), 500
+
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/admin/users/<int:user_id>")
+@admin_required
+def delete_user(user_id):
+    # Prevent admins from deleting themselves to avoid lockouts
+    if session.get("user_id") == user_id:
+        return jsonify({"error": "You cannot delete your own account."}), 400
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Ensure user exists
+    cur.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+    row = cur.fetchone()
+    if row is None:
+        conn.close()
+        return jsonify({"error": "User not found"}), 404
+
+    try:
+        # Gather events to remove related rounds
+        cur.execute("SELECT id FROM events WHERE user_id = ?", (user_id,))
+        event_ids = [r["id"] for r in cur.fetchall()]
+
+        if event_ids:
+            placeholders = ",".join("?" for _ in event_ids)
+            cur.execute(f"DELETE FROM rounds WHERE event_id IN ({placeholders})", event_ids)
+            cur.execute(f"DELETE FROM events WHERE id IN ({placeholders})", event_ids)
+
+        # Remove password reset tokens
+        cur.execute("DELETE FROM password_reset_tokens WHERE user_id = ?", (user_id,))
+
+        # Finally remove the user
+        cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        print("Error deleting user:", e)
         return jsonify({"error": "Server error"}), 500
 
     conn.close()
