@@ -210,6 +210,42 @@
       box-shadow: var(--shadow-soft);
     }
 
+    .events-controls {
+      display: flex;
+      gap: 10px;
+      padding: 10px 18px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .events-search {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+
+    .events-search:focus {
+      outline: none;
+      border-color: #4f46e5;
+    }
+
+    .events-sort {
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      background: white;
+      cursor: pointer;
+    }
+
+    .events-sort:focus {
+      outline: none;
+      border-color: #4f46e5;
+    }
+
     .events-header-row {
       display: grid;
       grid-template-columns: 1fr 80px;
@@ -238,6 +274,12 @@
     .event-deck {
       font-size: 0.8rem;
       color: var(--muted);
+    }
+
+    .event-date {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 2px;
     }
 
     .event-record-wrap {
@@ -859,6 +901,15 @@
       </section>
 
       <section class="events-card">
+        <div class="events-controls">
+          <input type="text" id="eventsSearch" class="events-search" placeholder="Search events or decks..." />
+          <select id="eventsSort" class="events-sort">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="date-newest">Date: Newest</option>
+            <option value="date-oldest">Date: Oldest</option>
+          </select>
+        </div>
         <div class="events-header-row">
           <span>Event</span>
           <span style="text-align:right;">Record</span>
@@ -2328,7 +2379,53 @@
         return;
       }
 
-      events.forEach(ev => {
+      // Get search and sort values
+      const searchQuery = document.getElementById("eventsSearch")?.value.toLowerCase().trim() || "";
+      const sortValue = document.getElementById("eventsSort")?.value || "newest";
+
+      // Filter events based on search query
+      let filteredEvents = events;
+      if (searchQuery) {
+        filteredEvents = events.filter(ev => {
+          const nameMatch = ev.name.toLowerCase().includes(searchQuery);
+          const deckMatch = (ev.yourDeck || "").toLowerCase().includes(searchQuery);
+          return nameMatch || deckMatch;
+        });
+      }
+
+      // Sort events based on sort value
+      filteredEvents.sort((a, b) => {
+        switch (sortValue) {
+          case "oldest":
+            return a.id - b.id;
+          case "date-newest":
+            if (!a.eventDate && !b.eventDate) return 0;
+            if (!a.eventDate) return 1;
+            if (!b.eventDate) return -1;
+            return new Date(b.eventDate) - new Date(a.eventDate);
+          case "date-oldest":
+            if (!a.eventDate && !b.eventDate) return 0;
+            if (!a.eventDate) return 1;
+            if (!b.eventDate) return -1;
+            return new Date(a.eventDate) - new Date(b.eventDate);
+          case "newest":
+          default:
+            return b.id - a.id;
+        }
+      });
+
+      // Show "no results" message if search filtered everything out
+      if (!filteredEvents.length) {
+        const empty = document.createElement("div");
+        empty.style.padding = "8px 18px 10px";
+        empty.style.fontSize = "0.85rem";
+        empty.style.color = "#6b7280";
+        empty.textContent = "No events found matching your search.";
+        body.appendChild(empty);
+        return;
+      }
+
+      filteredEvents.forEach(ev => {
         const row = document.createElement("div");
         row.className = "event-row";
 
@@ -2336,11 +2433,21 @@
         const nameEl = document.createElement("div");
         nameEl.className = "event-name";
         nameEl.textContent = ev.name;
-        const deckEl = document.createElement("div");
-        deckEl.className = "event-deck";
-        deckEl.textContent = ev.yourDeck ? ev.yourDeck : "";
         left.appendChild(nameEl);
-        if (ev.yourDeck) left.appendChild(deckEl);
+
+        if (ev.yourDeck) {
+          const deckEl = document.createElement("div");
+          deckEl.className = "event-deck";
+          deckEl.textContent = ev.yourDeck;
+          left.appendChild(deckEl);
+        }
+
+        if (ev.eventDate) {
+          const dateEl = document.createElement("div");
+          dateEl.className = "event-date";
+          dateEl.textContent = new Date(ev.eventDate).toLocaleDateString();
+          left.appendChild(dateEl);
+        }
 
         const wrap = document.createElement("div");
         wrap.className = "event-record-wrap";
@@ -2885,6 +2992,8 @@
       document.getElementById("addEventTrigger").onclick = showEventSheet;
       document.getElementById("cancelEventBtn").onclick = hideEventSheet;
       document.getElementById("eventForm").onsubmit = handleEventSubmit;
+      document.getElementById("eventsSearch").oninput = renderEvents;
+      document.getElementById("eventsSort").onchange = renderEvents;
 
       // Event detail nav
       document.getElementById("backToEventsBtn").onclick = () => {
