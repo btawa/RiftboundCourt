@@ -46,6 +46,13 @@
       color: var(--text);
     }
 
+    /* Prevent zoom on mobile for native app feel */
+    @media (max-width: 768px) {
+      html, body {
+        touch-action: manipulation;
+      }
+    }
+
     .app-shell {
       max-width: 480px;
       margin: 0 auto;
@@ -357,13 +364,14 @@
     input[type="text"],
     input[type="number"],
     input[type="password"],
+    input[type="date"],
     textarea {
       width: 100%;
       padding: 8px 10px;
       border-radius: 10px;
       border: 1px solid #e5e7eb;
       background: #f9fafb;
-      font-size: 0.9rem;
+      font-size: 1rem; /* 16px minimum prevents iOS auto-zoom on focus */
       box-sizing: border-box;
     }
 
@@ -639,7 +647,7 @@
       padding: 10px;
       border: 1px solid #d1d5db;
       border-radius: 8px;
-      font-size: 0.9rem;
+      font-size: 1rem; /* 16px minimum prevents iOS auto-zoom on focus */
       background: var(--card);
     }
 
