@@ -210,6 +210,37 @@
       box-shadow: var(--shadow-soft);
     }
 
+    .events-pagination {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 18px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 0.9rem;
+    }
+
+    .events-pagination-info {
+      color: var(--muted);
+      font-size: 0.85rem;
+      flex: 1;
+      text-align: center;
+    }
+
+    .events-pagination button {
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .events-pagination button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .events-controls {
       display: flex;
       gap: 10px;
@@ -915,6 +946,11 @@
           <span style="text-align:right;">Record</span>
         </div>
         <div id="eventsBody"></div>
+        <div class="events-pagination" id="eventsPagination">
+          <button type="button" id="eventsPrevPage">← Prev</button>
+          <div class="events-pagination-info" id="eventsPageInfo">Page 1 of 1</div>
+          <button type="button" id="eventsNextPage">Next →</button>
+        </div>
         <div class="add-row" id="addEventTrigger">＋ Add event</div>
       </section>
 
@@ -1266,6 +1302,9 @@
     let authMode = "login"; // "login" | "register"
     let statsMode = "matches"; // "matches" | "games"
     let currentStatsData = null; // Store current stats for mobile view
+    const EVENTS_PER_PAGE = 20;
+    let eventsPage = 1;
+    let eventsTotalPages = 1;
 
     /* ---- Toast notification ---- */
 
@@ -1324,8 +1363,20 @@
       return res;
     }
 
-    async function apiGetEvents() {
-      return apiGet("/api/events");
+    async function apiGetEvents(params = {}) {
+      const url = new URL("/api/events", window.location.origin);
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          url.searchParams.append(key, value);
+        }
+      });
+
+      const res = await fetch(url.toString(), {
+        method: "GET",
+        headers: buildHeaders(true),
+      });
+      if (!res.ok) throw new Error("Failed to load events");
+      return res.json();
     }
 
     async function apiCreateEvent(payload) {
@@ -1447,6 +1498,25 @@
       if (dateInput) {
         dateInput.value = getTodayDateValue();
       }
+    }
+
+    function updatePaginationControls() {
+      const paginationEl = document.getElementById("eventsPagination");
+      if (!paginationEl) return;
+
+      const info = document.getElementById("eventsPageInfo");
+      const prevBtn = document.getElementById("eventsPrevPage");
+      const nextBtn = document.getElementById("eventsNextPage");
+
+      if (eventsTotalPages <= 1) {
+        paginationEl.style.display = "none";
+      } else {
+        paginationEl.style.display = "flex";
+      }
+
+      info.textContent = `Page ${eventsPage} of ${eventsTotalPages}`;
+      prevBtn.disabled = eventsPage <= 1;
+      nextBtn.disabled = eventsPage >= eventsTotalPages;
     }
 
     /* ---- Detail event deck display helper ---- */
@@ -1661,6 +1731,7 @@
         adminBtn.style.display = "none";
       }
 
+      eventsPage = 1;
       renderEvents();
     }
 
@@ -2370,76 +2441,70 @@
       document.getElementById("eventDetailView").style.display = "block";
     }
 
+    function handleEventsSearch() {
+      eventsPage = 1;
+      renderEvents();
+    }
+
+    function handleEventsSortChange() {
+      eventsPage = 1;
+      renderEvents();
+    }
+
+    function goToPrevEventsPage() {
+      if (eventsPage > 1) {
+        eventsPage -= 1;
+        renderEvents();
+      }
+    }
+
+    function goToNextEventsPage() {
+      if (eventsPage < eventsTotalPages) {
+        eventsPage += 1;
+        renderEvents();
+      }
+    }
+
     async function renderEvents() {
       const body = document.getElementById("eventsBody");
       body.innerHTML = "";
-      let events;
+      const searchQuery = document.getElementById("eventsSearch")?.value.trim() || "";
+      const sortValue = document.getElementById("eventsSort")?.value || "newest";
+      let response;
 
       try {
-        events = await apiGetEvents();
+        response = await apiGetEvents({
+          page: eventsPage,
+          perPage: EVENTS_PER_PAGE,
+          search: searchQuery,
+          sort: sortValue,
+        });
       } catch (e) {
         body.innerHTML =
           '<div style="padding:8px 18px 10px;font-size:0.85rem;color:#b91c1c;">Error loading events (maybe not logged in).</div>';
+        updatePaginationControls();
         return;
       }
+
+      const events = response.events || [];
+      const pagination = response.pagination || {};
+      eventsPage = pagination.page || 1;
+      eventsTotalPages = pagination.totalPages || 1;
+      updatePaginationControls();
 
       if (!events.length) {
         const empty = document.createElement("div");
         empty.style.padding = "8px 18px 10px";
         empty.style.fontSize = "0.85rem";
         empty.style.color = "#6b7280";
-        empty.textContent = "No events yet. Add one to get started.";
+        empty.textContent = searchQuery
+          ? "No events found matching your search."
+          : "No events yet. Add one to get started.";
         body.appendChild(empty);
         return;
       }
 
-      // Get search and sort values
-      const searchQuery = document.getElementById("eventsSearch")?.value.toLowerCase().trim() || "";
-      const sortValue = document.getElementById("eventsSort")?.value || "newest";
-
-      // Filter events based on search query
-      let filteredEvents = events;
-      if (searchQuery) {
-        filteredEvents = events.filter(ev => {
-          const nameMatch = ev.name.toLowerCase().includes(searchQuery);
-          const deckMatch = (ev.yourDeck || "").toLowerCase().includes(searchQuery);
-          return nameMatch || deckMatch;
-        });
-      }
-
-      // Sort events based on sort value
-      filteredEvents.sort((a, b) => {
-        switch (sortValue) {
-          case "oldest":
-            return a.id - b.id;
-          case "date-newest":
-            if (!a.eventDate && !b.eventDate) return 0;
-            if (!a.eventDate) return 1;
-            if (!b.eventDate) return -1;
-            return new Date(b.eventDate) - new Date(a.eventDate);
-          case "date-oldest":
-            if (!a.eventDate && !b.eventDate) return 0;
-            if (!a.eventDate) return 1;
-            if (!b.eventDate) return -1;
-            return new Date(a.eventDate) - new Date(b.eventDate);
-          case "newest":
-          default:
-            return b.id - a.id;
-        }
-      });
-
-      // Show "no results" message if search filtered everything out
-      if (!filteredEvents.length) {
-        const empty = document.createElement("div");
-        empty.style.padding = "8px 18px 10px";
-        empty.style.fontSize = "0.85rem";
-        empty.style.color = "#6b7280";
-        empty.textContent = "No events found matching your search.";
-        body.appendChild(empty);
-        return;
-      }
-
-      filteredEvents.forEach(ev => {
+      events.forEach(ev => {
         const row = document.createElement("div");
         row.className = "event-row";
 
@@ -2538,6 +2603,7 @@
         dateInput.value = "";
         urlInput.value = "";
         hideEventSheet();
+        eventsPage = 1;
         await renderEvents();
         openEvent(ev);
       } catch (err) {
@@ -3008,8 +3074,10 @@
       document.getElementById("addEventTrigger").onclick = showEventSheet;
       document.getElementById("cancelEventBtn").onclick = hideEventSheet;
       document.getElementById("eventForm").onsubmit = handleEventSubmit;
-      document.getElementById("eventsSearch").oninput = renderEvents;
-      document.getElementById("eventsSort").onchange = renderEvents;
+      document.getElementById("eventsSearch").oninput = handleEventsSearch;
+      document.getElementById("eventsSort").onchange = handleEventsSortChange;
+      document.getElementById("eventsPrevPage").onclick = goToPrevEventsPage;
+      document.getElementById("eventsNextPage").onclick = goToNextEventsPage;
 
       // Event detail nav
       document.getElementById("backToEventsBtn").onclick = () => {

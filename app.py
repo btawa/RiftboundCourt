@@ -660,11 +660,43 @@ def delete_user(user_id):
 @login_required
 def list_events():
     user_id = session["user_id"]
+
+    page = request.args.get("page", default=1, type=int)
+    per_page = request.args.get("perPage", default=20, type=int)
+    search = (request.args.get("search") or "").strip().lower()
+    sort = (request.args.get("sort") or "newest").lower()
+
+    page = max(page, 1)
+    per_page = min(max(per_page, 1), 100)
+
+    base_query = "FROM events WHERE user_id = ?"
+    params = [user_id]
+
+    if search:
+        base_query += " AND (LOWER(name) LIKE ? OR LOWER(your_deck) LIKE ?)"
+        like = f"%{search}%"
+        params.extend([like, like])
+
+    sort_clause = "id DESC"
+    if sort == "oldest":
+        sort_clause = "id ASC"
+    elif sort == "date-newest":
+        sort_clause = "CASE WHEN event_date IS NULL OR event_date = '' THEN 1 ELSE 0 END, event_date DESC, id DESC"
+    elif sort == "date-oldest":
+        sort_clause = "CASE WHEN event_date IS NULL OR event_date = '' THEN 1 ELSE 0 END, event_date ASC, id ASC"
+
     conn = get_db()
     cur = conn.cursor()
+
+    cur.execute(f"SELECT COUNT(*) as cnt {base_query}", params)
+    total_count = cur.fetchone()["cnt"]
+    total_pages = max((total_count + per_page - 1) // per_page, 1)
+    page = min(page, total_pages)
+    offset = (page - 1) * per_page
+
     cur.execute(
-        "SELECT * FROM events WHERE user_id = ? ORDER BY id DESC",
-        (user_id,),
+        f"SELECT * {base_query} ORDER BY {sort_clause} LIMIT ? OFFSET ?",
+        (*params, per_page, offset),
     )
     rows = cur.fetchall()
     conn.close()
@@ -683,7 +715,15 @@ def list_events():
                 "record": record,
             }
         )
-    return jsonify(events)
+    return jsonify({
+        "events": events,
+        "pagination": {
+            "page": page,
+            "perPage": per_page,
+            "total": total_count,
+            "totalPages": total_pages,
+        },
+    })
 
 
 @app.post("/api/events")
