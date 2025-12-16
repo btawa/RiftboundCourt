@@ -1435,6 +1435,20 @@
       return "Draw";
     }
 
+    function getTodayDateValue() {
+      const now = new Date();
+      // Align to local date for the date input (avoid UTC offset surprises)
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      return now.toISOString().slice(0, 10);
+    }
+
+    function setDefaultEventDate() {
+      const dateInput = document.getElementById("eventDate");
+      if (dateInput) {
+        dateInput.value = getTodayDateValue();
+      }
+    }
+
     /* ---- Detail event deck display helper ---- */
     function updateDetailEventDeckDisplay() {
       const deckEl = document.getElementById("detailEventDeck");
@@ -2486,6 +2500,7 @@
     }
 
     function showEventSheet() {
+      setDefaultEventDate();
       document.getElementById("eventSheet").classList.add("visible");
     }
 
@@ -2948,6 +2963,7 @@
       updateSheetRoundLabel();
       updateGameVisibility();
       updateMatchSummary();
+      setDefaultEventDate();
 
       // Auth UI wiring
       setAuthMode("login");
