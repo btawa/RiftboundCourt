@@ -241,6 +241,21 @@
       cursor: not-allowed;
     }
 
+    .deck-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .deck-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      object-fit: cover;
+      flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    }
+
     .events-controls {
       display: flex;
       gap: 10px;
@@ -1305,6 +1320,7 @@
     const EVENTS_PER_PAGE = 20;
     let eventsPage = 1;
     let eventsTotalPages = 1;
+    let championIconPromise = null;
 
     /* ---- Toast notification ---- */
 
@@ -1519,6 +1535,73 @@
       nextBtn.disabled = eventsPage >= eventsTotalPages;
     }
 
+    function normalizeDeckName(name) {
+      const base = (name || "").split(" - ")[0].trim();
+      return base.toLowerCase().replace(/[^a-z0-9]/g, "");
+    }
+
+    async function ensureChampionIconsLoaded() {
+      if (!championIconPromise) {
+        championIconPromise = (async () => {
+          try {
+            const res = await fetch("/data/champion-summary.json");
+            if (!res.ok) return;
+            const data = await res.json();
+            window.__champIconMap = new Map();
+            data.forEach(ch => {
+              const keys = [normalizeDeckName(ch.name), normalizeDeckName(ch.alias)];
+              keys.forEach(k => {
+                if (k) window.__champIconMap.set(k, ch.squarePortraitPath);
+              });
+            });
+          } catch (e) {
+            console.warn("Champion icons not loaded", e);
+          }
+        })();
+      }
+      return championIconPromise;
+    }
+
+    function getChampionIconPath(name) {
+      if (!window.__champIconMap) return null;
+      const key = normalizeDeckName(name);
+      if (!key) return null;
+      return window.__champIconMap.get(key) || null;
+    }
+
+    function createDeckLabel(name, url) {
+      const wrap = document.createElement("div");
+      wrap.className = "deck-label";
+
+      if (!name) return wrap;
+
+      const iconPath = getChampionIconPath(name);
+      if (iconPath) {
+        const img = document.createElement("img");
+        img.className = "deck-icon";
+        img.src = iconPath;
+        img.alt = "";
+        wrap.appendChild(img);
+      }
+
+      if (url) {
+        const a = document.createElement("a");
+        a.textContent = name;
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.style.color = "inherit";
+        a.style.textDecoration = "underline";
+        wrap.appendChild(a);
+      } else {
+        const span = document.createElement("span");
+        span.textContent = name;
+        wrap.appendChild(span);
+      }
+
+      return wrap;
+    }
+
     /* ---- Detail event deck display helper ---- */
     function updateDetailEventDeckDisplay() {
       const deckEl = document.getElementById("detailEventDeck");
@@ -1528,21 +1611,8 @@
         return;
       }
 
-      const text = currentEvent.yourDeck;
-      const url = currentEvent.linkUrl;
-
-      if (url) {
-        const a = document.createElement("a");
-        a.textContent = text;
-        a.href = url;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        a.style.color = "inherit";
-        a.style.textDecoration = "underline";
-        deckEl.appendChild(a);
-      } else {
-        deckEl.textContent = text;
-      }
+      const label = createDeckLabel(currentEvent.yourDeck, currentEvent.linkUrl);
+      deckEl.appendChild(label);
     }
 
     /* ---- UI: Games visibility & summary ---- */
@@ -2473,6 +2543,7 @@
       let response;
 
       try {
+        await ensureChampionIconsLoaded();
         response = await apiGetEvents({
           page: eventsPage,
           perPage: EVENTS_PER_PAGE,
@@ -2517,7 +2588,8 @@
         if (ev.yourDeck) {
           const deckEl = document.createElement("div");
           deckEl.className = "event-deck";
-          deckEl.textContent = ev.yourDeck;
+          const label = createDeckLabel(ev.yourDeck, ev.linkUrl);
+          deckEl.appendChild(label);
           left.appendChild(deckEl);
         }
 
@@ -2665,7 +2737,8 @@
         const mid = document.createElement("div");
         const deckName = document.createElement("div");
         deckName.className = "round-deck-main";
-        deckName.textContent = r.oppDeck || "Unknown";
+        const deckLabel = createDeckLabel(r.oppDeck || "Unknown", null);
+        deckName.appendChild(deckLabel);
         mid.appendChild(deckName);
 
         const actions = document.createElement("div");
@@ -2906,8 +2979,10 @@
       currentDetailRound = round;
 
       document.getElementById("roundDetailTitle").textContent = `Round ${round.roundNumber}`;
-      document.getElementById("roundDetailOppDeck").textContent =
-        round.oppDeck || "Unknown deck";
+      const oppContainer = document.getElementById("roundDetailOppDeck");
+      oppContainer.innerHTML = "";
+      const oppLabel = createDeckLabel(round.oppDeck || "Unknown deck", null);
+      oppContainer.appendChild(oppLabel);
 
       const die = round.dieRollWon ? "You won the die roll." :
         "You did not win the die roll (or went second).";
@@ -3105,6 +3180,9 @@
       // Round details overlay
       document.getElementById("closeRoundDetailBtn").onclick = hideRoundDetails;
       document.getElementById("saveRoundCommentsBtn").onclick = saveRoundComments;
+
+      // Preload champion icons in background (non-blocking)
+      ensureChampionIconsLoaded();
 
       // Check if already logged in
       checkCurrentUser();
