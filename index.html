@@ -59,6 +59,12 @@
       padding: 12px 12px 32px;
     }
 
+    .app-shell.stats-fullscreen {
+      max-width: none;
+      margin: 0;
+      padding: 0;
+    }
+
     /* Auth view */
     #authView {
       max-width: 480px;
@@ -637,6 +643,33 @@
       overflow-y: auto;
     }
 
+    .stats-page {
+      padding: 16px 18px 24px;
+      display: block;
+    }
+
+    #statsView {
+      width: 100%;
+    }
+
+    .stats-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 12px 16px 32px;
+    }
+
+    .stats-page .stats-date-filter {
+      flex-wrap: wrap;
+    }
+
+    .stats-page .stats-date-filter > div {
+      min-width: 180px;
+    }
+
+    .stats-page .stats-date-filter button {
+      white-space: nowrap;
+    }
+
     /* Stats grid */
     .stats-grid-container {
       overflow-x: auto;
@@ -799,21 +832,21 @@
       }
 
       /* Stack date filter vertically on mobile */
-      #statsSheet .stats-date-filter {
+      .stats-page .stats-date-filter {
         flex-direction: column;
         gap: 8px;
       }
 
-      #statsSheet .stats-date-filter > div {
+      .stats-page .stats-date-filter > div {
         width: 100%;
       }
 
-      #statsSheet .stats-date-filter input {
+      .stats-page .stats-date-filter input {
         width: 100%;
         box-sizing: border-box;
       }
 
-      #statsSheet .stats-date-filter button {
+      .stats-page .stats-date-filter button {
         width: 100%;
       }
     }
@@ -1042,6 +1075,84 @@
         </div>
       </section>
     </div>
+
+    <!-- ========== STATS VIEW ========== -->
+    <div id="statsView" class="stats-full" style="display:none;">
+      <div class="stats-shell">
+        <section class="event-header-card">
+          <div class="event-header-row">
+            <button class="back-button" id="backToEventsFromStatsBtn">← Events</button>
+            <div class="event-header-main">
+              <div class="event-title">Matchup Win Rates</div>
+              <div class="event-subtitle">Rows = your deck, Columns = opponent deck</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="sheet stats-page" id="statsSheet">
+          <div style="display: flex; gap: 8px; margin: 12px 0; border-bottom: 1px solid #e5e7eb; justify-content: center;">
+            <button type="button" id="statsTabMatches" class="stats-tab" style="flex: 0 0 auto; padding: 8px 16px; border: none; background: transparent; cursor: pointer; border-bottom: 2px solid var(--accent); font-weight: 600;">Match Win %</button>
+            <button type="button" id="statsTabGames" class="stats-tab" style="flex: 0 0 auto; padding: 8px 16px; border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent;">Game Win %</button>
+          </div>
+
+          <div class="stats-date-filter" style="display: flex; gap: 12px; align-items: center; justify-content: center; margin: 12px 0; padding: 12px; background: var(--accent-soft); border-radius: 8px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <label for="statsStartDate" style="font-size: 0.85rem; font-weight: 500;">From:</label>
+              <input type="date" id="statsStartDate" style="padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem;" />
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <label for="statsEndDate" style="font-size: 0.85rem; font-weight: 500;">To:</label>
+              <input type="date" id="statsEndDate" style="padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem;" />
+            </div>
+            <button type="button" id="statsApplyDateRange" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.85rem;">Apply</button>
+            <button type="button" id="statsClearDateRange" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">Clear</button>
+          </div>
+          <div class="stats-date-presets" style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 0 0 12px;">
+            <button type="button" id="statsPreset7d" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">Last 7 days</button>
+            <button type="button" id="statsPreset30d" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">Last 30 days</button>
+            <button type="button" id="statsPreset90d" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">Last 90 days</button>
+            <button type="button" id="statsPreset1y" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">Last year</button>
+          </div>
+
+          <div class="stats-legend">
+            <div class="legend-item">
+              <div class="legend-box" style="background: #991b1b;"></div>
+              <span>0% WR</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-box" style="background: #fef08a;"></div>
+              <span>50% WR</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-box" style="background: #166534;"></div>
+              <span>100% WR</span>
+            </div>
+          </div>
+
+          <div class="stats-grid-container">
+            <div id="statsGridContent">
+              <!-- Grid will be inserted here -->
+            </div>
+          </div>
+
+          <div class="stats-mobile-view">
+            <div class="stats-deck-selector">
+              <label for="statsMobileDeckSelect" style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Select your deck:</label>
+              <select id="statsMobileDeckSelect">
+                <option value="">-- Select a deck --</option>
+              </select>
+            </div>
+            <div id="statsMobileContent">
+              <!-- Mobile cards will be inserted here -->
+            </div>
+          </div>
+
+          <div class="stats-info" id="statsInfoText">
+            Hover over colored cells to see detailed record (wins-losses-draws).
+          </div>
+        </section>
+      </div>
+    </div>
   </div>
 
   <!-- Event Edit Overlay -->
@@ -1234,72 +1345,6 @@
 
       <div class="sheet-footer">
         <button type="button" class="btn btn-secondary" id="closeAdminBtn">Close</button>
-      </div>
-    </section>
-  </div>
-
-  <!-- Stats Overlay -->
-  <div class="overlay" id="statsOverlay">
-    <section class="sheet modal-sheet" id="statsSheet" style="max-width: 800px;">
-      <div class="sheet-title">Matchup Win Rates</div>
-
-      <div style="display: flex; gap: 8px; margin: 12px 0; border-bottom: 1px solid #e5e7eb; justify-content: center;">
-        <button type="button" id="statsTabMatches" class="stats-tab" style="flex: 0 0 auto; padding: 8px 16px; border: none; background: transparent; cursor: pointer; border-bottom: 2px solid var(--accent); font-weight: 600;">Match Win %</button>
-        <button type="button" id="statsTabGames" class="stats-tab" style="flex: 0 0 auto; padding: 8px 16px; border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent;">Game Win %</button>
-      </div>
-
-      <div class="stats-date-filter" style="display: flex; gap: 12px; align-items: center; justify-content: center; margin: 12px 0; padding: 12px; background: var(--accent-soft); border-radius: 8px;">
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <label for="statsStartDate" style="font-size: 0.85rem; font-weight: 500;">From:</label>
-          <input type="date" id="statsStartDate" style="padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem;" />
-        </div>
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <label for="statsEndDate" style="font-size: 0.85rem; font-weight: 500;">To:</label>
-          <input type="date" id="statsEndDate" style="padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem;" />
-        </div>
-        <button type="button" id="statsApplyDateRange" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.85rem;">Apply</button>
-        <button type="button" id="statsClearDateRange" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">Clear</button>
-      </div>
-
-      <div class="stats-legend">
-        <div class="legend-item">
-          <div class="legend-box" style="background: #991b1b;"></div>
-          <span>0% WR</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-box" style="background: #fef08a;"></div>
-          <span>50% WR</span>
-        </div>
-        <div class="legend-item">
-          <div class="legend-box" style="background: #166534;"></div>
-          <span>100% WR</span>
-        </div>
-      </div>
-
-      <div class="stats-grid-container">
-        <div id="statsGridContent">
-          <!-- Grid will be inserted here -->
-        </div>
-      </div>
-
-      <div class="stats-mobile-view">
-        <div class="stats-deck-selector">
-          <label for="statsMobileDeckSelect" style="font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 6px;">Select your deck:</label>
-          <select id="statsMobileDeckSelect">
-            <option value="">-- Select a deck --</option>
-          </select>
-        </div>
-        <div id="statsMobileContent">
-          <!-- Mobile cards will be inserted here -->
-        </div>
-      </div>
-
-      <div class="stats-info" id="statsInfoText">
-        Hover over colored cells to see detailed record (wins-losses-draws). Rows = your deck, Columns = opponent's deck.
-      </div>
-
-      <div class="sheet-footer">
-        <button type="button" class="btn btn-secondary" id="closeStatsBtn">Close</button>
       </div>
     </section>
   </div>
@@ -2242,17 +2287,13 @@
 
     /* ---- Stats ---- */
 
-    function showStatsOverlay() {
-      document.getElementById("statsOverlay").classList.add("visible");
-      document.getElementById("statsSheet").classList.add("visible");
+    function showStatsView() {
+      document.getElementById("appShell").classList.add("stats-fullscreen");
+      document.getElementById("eventsView").style.display = "none";
+      document.getElementById("eventDetailView").style.display = "none";
+      document.getElementById("statsView").style.display = "block";
       statsMode = "matches"; // Reset to matches when opening
       switchStatsTab("matches");
-      loadStatsGrid();
-    }
-
-    function hideStatsOverlay() {
-      document.getElementById("statsSheet").classList.remove("visible");
-      document.getElementById("statsOverlay").classList.remove("visible");
     }
 
     function switchStatsTab(mode) {
@@ -2298,6 +2339,16 @@
       }
 
       return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function setStatsDateRange(daysBack) {
+      const end = new Date();
+      const start = new Date();
+      start.setDate(start.getDate() - daysBack);
+      const toIsoDate = (d) => d.toISOString().slice(0, 10);
+      document.getElementById("statsStartDate").value = toIsoDate(start);
+      document.getElementById("statsEndDate").value = toIsoDate(end);
+      loadStatsGrid();
     }
 
     async function loadStatsGrid() {
@@ -2489,8 +2540,10 @@
     /* ---- Events view ---- */
 
     function showEventsView() {
+      document.getElementById("appShell").classList.remove("stats-fullscreen");
       document.getElementById("eventsView").style.display = "block";
       document.getElementById("eventDetailView").style.display = "none";
+      document.getElementById("statsView").style.display = "none";
 
       document.getElementById("eventOverlay").classList.remove("visible");
       document.getElementById("roundOverlay").classList.remove("visible");
@@ -2507,8 +2560,10 @@
     }
 
     function showEventDetailView() {
+      document.getElementById("appShell").classList.remove("stats-fullscreen");
       document.getElementById("eventsView").style.display = "none";
       document.getElementById("eventDetailView").style.display = "block";
+      document.getElementById("statsView").style.display = "none";
     }
 
     function handleEventsSearch() {
@@ -3114,8 +3169,8 @@
       document.getElementById("authForm").onsubmit = handleAuthSubmit;
       document.getElementById("authCancelBtn").onclick = clearAuthFields;
       document.getElementById("logoutBtn").onclick = handleLogout;
-      document.getElementById("statsBtn").onclick = showStatsOverlay;
-      document.getElementById("closeStatsBtn").onclick = hideStatsOverlay;
+      document.getElementById("statsBtn").onclick = showStatsView;
+      document.getElementById("backToEventsFromStatsBtn").onclick = showEventsView;
       document.getElementById("statsTabMatches").onclick = () => switchStatsTab("matches");
       document.getElementById("statsTabGames").onclick = () => switchStatsTab("games");
       document.getElementById("statsApplyDateRange").onclick = loadStatsGrid;
@@ -3124,6 +3179,10 @@
         document.getElementById("statsEndDate").value = "";
         loadStatsGrid();
       };
+      document.getElementById("statsPreset7d").onclick = () => setStatsDateRange(7);
+      document.getElementById("statsPreset30d").onclick = () => setStatsDateRange(30);
+      document.getElementById("statsPreset90d").onclick = () => setStatsDateRange(90);
+      document.getElementById("statsPreset1y").onclick = () => setStatsDateRange(365);
       document.getElementById("statsMobileDeckSelect").onchange = (e) => {
         renderMobileCards(currentStatsData, e.target.value);
       };
